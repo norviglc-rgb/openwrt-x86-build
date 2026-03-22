@@ -1,0 +1,37 @@
+# ============================================================
+# DNS 高可用配置插件
+# OpenClash + AdGuardHome (Docker) + Dnsmasq 共存方案
+# 更新: 2026-03 (移除不需要的 SmartDNS/MosDNS)
+# ============================================================
+
+# DNS 基础 (dnsmasq-full 支持 ipset/nftset)
+CONFIG_PACKAGE_dnsmasq-full=y
+
+# OpenClash (内置 DNS 分流，不需要额外工具)
+CONFIG_PACKAGE_luci-app-openclash=y
+CONFIG_PACKAGE_coreutils-nohup=y
+CONFIG_PACKAGE_coreutils-base64=y
+
+# ============================================================
+# 不需要的包 (已被 OpenClash 内置功能替代)
+# ============================================================
+# SmartDNS - OpenClash 已有 DNS 分流
+# CONFIG_PACKAGE_smartdns=y
+# CONFIG_PACKAGE_luci-app-smartdns=y
+
+# MosDNS - OpenClash 已有 DNS 分流
+# CONFIG_PACKAGE_mosdns=y
+# CONFIG_PACKAGE_luci-app-mosdns=y
+
+# https-dns-proxy - OpenClash 已支持 DoH
+# CONFIG_PACKAGE_https-dns-proxy=y
+# CONFIG_PACKAGE_luci-app-https-dns-proxy=y
+
+# dns-forwarder - 不需要
+# CONFIG_PACKAGE_dns-forwarder=y
+
+# ============================================================
+# 以下依赖由其他 .list 文件提供，此处不重复定义
+# - Docker: docker.list
+# - 核心依赖: x86-64.config
+# ============================================================

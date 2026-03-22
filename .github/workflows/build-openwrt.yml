@@ -1,0 +1,421 @@
+# ============================================================
+# OpenWrt x86-64 GitHub Actions 自动编译工作流
+# 基于 P3TERX/Actions-OpenWrt 和 ophub/amlogic-s9xxx-openwrt 最佳实践
+# ============================================================
+
+name: Build OpenWrt x86-64
+
+on:
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: '源码仓库'
+        required: true
+        default: 'lede'
+        type: choice
+        options:
+          - lede
+          - immortalwrt
+          - openwrt
+      source_branch:
+        description: '源码分支'
+        required: true
+        default: 'master'
+        type: string
+      firmware_type:
+        description: '固件文件系统'
+        required: true
+        default: 'squashfs'
+        type: choice
+        options:
+          - squashfs
+          - ext4
+      include_proxy:
+        description: '包含代理插件 (OpenClash+PassWall)'
+        required: true
+        default: true
+        type: boolean
+      include_docker:
+        description: '包含 Docker 支持'
+        required: true
+        default: true
+        type: boolean
+      clean_cache:
+        description: '清除缓存重新编译'
+        required: false
+        default: false
+        type: boolean
+
+  # 定时编译 - 每周一凌晨 2 点
+  schedule:
+    - cron: '0 2 * * 1'
+
+  # 推送触发
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'config/**'
+      - 'scripts/**'
+      - 'feeds.conf'
+      - '.github/workflows/build-openwrt.yml'
+
+env:
+  TZ: Asia/Shanghai
+  # 默认配置 (可被 workflow_dispatch 输入覆盖)
+  DEFAULT_REPO: lede
+  DEFAULT_BRANCH: master
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      # --------------------------------------------------
+      # 1. 环境准备
+      # --------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          echo "==> 清理磁盘空间..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android/sdk
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          sudo apt-get clean
+          df -h
+
+      - name: Install build dependencies
+        run: |
+          echo "==> 安装编译依赖..."
+          sudo apt-get update -y
+          sudo apt-get full-upgrade -y
+          sudo apt-get install -y \
+            ack antlr3 asciidoc autoconf automake autopoint \
+            binutils bison build-essential bzip2 ccache cmake cpio curl \
+            device-tree-compiler flex gawk gettext gcc-multilib g++-multilib \
+            git gperf haveged help2man intltool libc6-dev-i386 libelf-dev \
+            libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
+            libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev \
+            libssl-dev libtool lrzsz mkisofs ninja-build p7zip p7zip-full \
+            patch pkgconf python3 python3-pyelftools python3-setuptools \
+            qemu-utils rsync scons squashfs-tools subversion swig texinfo \
+            uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
+
+      # --------------------------------------------------
+      # 2. 设置变量
+      # --------------------------------------------------
+      - name: Set build variables
+        id: vars
+        run: |
+          # 源码仓库选择
+          REPO="${{ github.event.inputs.source_repo || env.DEFAULT_REPO }}"
+          BRANCH="${{ github.event.inputs.source_branch || env.DEFAULT_BRANCH }}"
+
+          case "$REPO" in
+            lede)
+              REPO_URL="https://github.com/coolsnowwolf/lede"
+              ;;
+            immortalwrt)
+              REPO_URL="https://github.com/immortalwrt/immortalwrt"
+              ;;
+            openwrt)
+              REPO_URL="https://github.com/openwrt/openwrt"
+              ;;
+          esac
+
+          echo "REPO=$REPO" >> $GITHUB_OUTPUT
+          echo "BRANCH=$BRANCH" >> $GITHUB_OUTPUT
+          echo "REPO_URL=$REPO_URL" >> $GITHUB_OUTPUT
+          echo "BUILD_DATE=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+          echo "BUILD_TIME=$(date +%H%M)" >> $GITHUB_OUTPUT
+
+      # --------------------------------------------------
+      # 3. 缓存管理
+      # --------------------------------------------------
+      - name: Cache toolchain
+        if: ${{ github.event.inputs.clean_cache != 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt/staging_dir
+            openwrt/build_dir/host
+            openwrt/ccache
+          key: toolchain-${{ steps.vars.outputs.REPO }}-${{ steps.vars.outputs.BRANCH }}-${{ hashFiles('config/x86-64.config') }}
+          restore-keys: |
+            toolchain-${{ steps.vars.outputs.REPO }}-${{ steps.vars.outputs.BRANCH }}-
+
+      - name: Cache dl directory
+        uses: actions/cache@v4
+        with:
+          path: openwrt/dl
+          key: dl-${{ steps.vars.outputs.REPO }}-${{ hashFiles('config/x86-64.config') }}
+          restore-keys: |
+            dl-${{ steps.vars.outputs.REPO }}-
+
+      - name: Clean cache if requested
+        if: ${{ github.event.inputs.clean_cache == 'true' }}
+        run: |
+          echo "==> 清除所有缓存..."
+          rm -rf openwrt/ccache openwrt/staging_dir openwrt/build_dir/host openwrt/dl
+
+      # --------------------------------------------------
+      # 4. 克隆源码
+      # --------------------------------------------------
+      - name: Clone source code
+        run: |
+          echo "==> 克隆源码: ${{ steps.vars.outputs.REPO_URL }}"
+          git clone --depth 1 --single-branch \
+            --branch ${{ steps.vars.outputs.BRANCH }} \
+            ${{ steps.vars.outputs.REPO_URL }} openwrt
+          cd openwrt
+          echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "COMMIT_DATE=$(git log -1 --format='%cd' --date=format:'%Y%m%d')" >> $GITHUB_ENV
+
+      # --------------------------------------------------
+      # 5. 更新 Feeds
+      # --------------------------------------------------
+      - name: Load custom feeds configuration
+        run: |
+          if [ -f feeds.conf ]; then
+            echo "==> 使用自定义 feeds.conf"
+            cp feeds.conf openwrt/feeds.conf.default
+          fi
+
+      - name: Run diy-part1.sh (before feeds update)
+        run: |
+          if [ -f scripts/diy-part1.sh ]; then
+            echo "==> 执行 diy-part1.sh"
+            chmod +x scripts/diy-part1.sh
+            cd openwrt
+            ../scripts/diy-part1.sh
+          fi
+
+      - name: Update and install feeds
+        run: |
+          cd openwrt
+          echo "==> 更新 feeds..."
+          ./scripts/feeds update -a
+          echo "==> 安装 feeds..."
+          ./scripts/feeds install -a
+
+      # --------------------------------------------------
+      # 6. 配置编译选项
+      # --------------------------------------------------
+      - name: Load custom configuration
+        run: |
+          cd openwrt
+
+          # 复制基础配置
+          if [ -f ../config/x86-64.config ]; then
+            echo "==> 加载自定义配置..."
+            cp ../config/x86-64.config .config
+          fi
+
+          # 根据输入参数调整配置
+          FIRMWARE_TYPE="${{ github.event.inputs.firmware_type || 'squashfs' }}"
+          INCLUDE_PROXY="${{ github.event.inputs.include_proxy || 'true' }}"
+          INCLUDE_DOCKER="${{ github.event.inputs.include_docker || 'true' }}"
+
+          # 文件系统类型
+          if [ "$FIRMWARE_TYPE" = "ext4" ]; then
+            sed -i 's/CONFIG_TARGET_ROOTFS_SQUASHFS=y/# CONFIG_TARGET_ROOTFS_SQUASHFS is not set/' .config
+            echo "CONFIG_TARGET_ROOTFS_EXT4FS=y" >> .config
+            echo "CONFIG_TARGET_ROOTFS_PARTSIZE=512" >> .config
+          fi
+
+          # DNS 高可用配置 (OpenClash + Docker + dnsmasq-full)
+          if [ -f ../config/packages/dns-ha.list ]; then
+            echo "==> 添加 DNS 高可用配置..."
+            cat ../config/packages/dns-ha.list >> .config
+          fi
+
+          # 代理插件 (PassWall, 与 OpenClash 共存)
+          if [ "$INCLUDE_PROXY" = "true" ]; then
+            echo "==> 添加代理插件..."
+            cat ../config/packages/proxy.list >> .config
+          fi
+
+          # Docker 支持
+          if [ "$INCLUDE_DOCKER" = "true" ]; then
+            echo "==> 添加 Docker 支持..."
+            cat ../config/packages/docker.list >> .config
+          fi
+
+          # 安全插件
+          if [ -f ../config/packages/security.list ]; then
+            echo "==> 添加安全插件..."
+            cat ../config/packages/security.list >> .config
+          fi
+
+          # 生成最终配置
+          make defconfig
+
+      - name: Run diy-part2.sh (after feeds update)
+        run: |
+          if [ -f scripts/diy-part2.sh ]; then
+            echo "==> 执行 diy-part2.sh"
+            chmod +x scripts/diy-part2.sh
+            cd openwrt
+            ../scripts/diy-part2.sh
+          fi
+
+      # --------------------------------------------------
+      # 7. 下载源码包
+      # --------------------------------------------------
+      - name: Download source packages
+        run: |
+          cd openwrt
+          echo "==> 下载源码包..."
+          make download -j$(nproc)
+
+      # --------------------------------------------------
+      # 8. 编译固件
+      # --------------------------------------------------
+      - name: Build firmware
+        run: |
+          cd openwrt
+          echo "==> 开始编译 (使用 $(nproc) 线程)..."
+          echo "编译开始时间: $(date)"
+
+          # 配置 ccache
+          if command -v ccache &> /dev/null; then
+            ccache -M 5G
+            ccache -z
+          fi
+
+          # 编译 (失败时单线程重试以显示详细错误)
+          make -j$(nproc) || {
+            echo "==> 多线程编译失败，单线程重试..."
+            make -j1 V=s
+          }
+
+          echo "编译结束时间: $(date)"
+
+          # 显示 ccache 统计
+          if command -v ccache &> /dev/null; then
+            echo "==> ccache 统计:"
+            ccache -s
+          fi
+
+      # --------------------------------------------------
+      # 9. 整理固件
+      # --------------------------------------------------
+      - name: Organize firmware files
+        id: organize
+        run: |
+          cd openwrt
+
+          # 创建输出目录
+          mkdir -p firmware_output
+
+          # 复制固件文件
+          cp bin/targets/x86/64/*.img.gz firmware_output/ 2>/dev/null || true
+          cp bin/targets/x86/64/*.iso firmware_output/ 2>/dev/null || true
+          cp bin/targets/x86/64/*.sha256sums firmware_output/ 2>/dev/null || true
+
+          # 复制配置文件 (用于调试)
+          cp .config firmware_output/config.txt 2>/dev/null || true
+
+          # 生成版本信息
+          VERSION="${{ steps.vars.outputs.REPO }}-${{ env.COMMIT_DATE }}-${{ steps.vars.outputs.BUILD_TIME }}"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+          # 生成 SHA256 校验
+          cd firmware_output
+          sha256sum *.img.gz *.iso 2>/dev/null > sha256sum.txt || true
+
+          # 显示固件信息
+          echo "=========================================="
+          echo "固件文件列表:"
+          echo "=========================================="
+          ls -lh
+          echo "=========================================="
+
+      # --------------------------------------------------
+      # 10. 上传到 Artifacts
+      # --------------------------------------------------
+      - name: Upload firmware to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-x86-64-${{ steps.organize.outputs.VERSION }}
+          path: openwrt/firmware_output/*
+          retention-days: 7
+
+      # --------------------------------------------------
+      # 11. 发布到 Releases
+      # --------------------------------------------------
+      - name: Generate release tag
+        id: tag
+        run: |
+          RELEASE_TAG="${{ steps.vars.outputs.BUILD_DATE }}-${{ steps.vars.outputs.BUILD_TIME }}"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.RELEASE_TAG }}
+          name: OpenWrt x86-64 ${{ steps.tag.outputs.RELEASE_TAG }}
+          body: |
+            ## 编译信息
+            - **源码**: ${{ steps.vars.outputs.REPO }} / ${{ steps.vars.outputs.BRANCH }}
+            - **文件系统**: ${{ github.event.inputs.firmware_type || 'squashfs' }}
+            - **代理插件**: ${{ github.event.inputs.include_proxy || 'true' }}
+            - **Docker 支持**: ${{ github.event.inputs.include_docker || 'true' }}
+            - **编译时间**: $(date +'%Y-%m-%d %H:%M:%S')
+            - **Commit**: ${{ env.COMMIT_HASH }}
+
+            ## 默认配置
+            - **IP 地址**: 192.168.1.1
+            - **用户名**: root
+            - **密码**: password
+            - **主题**: Argon
+
+            ## 包含插件
+            - OpenClash + PassWall (代理)
+            - sqm-autorate (智能 QoS)
+            - Docker (容器支持)
+            - netdata + btop (监控)
+            - banip + oaf (安全)
+            - Argon 主题
+
+            ## 文件说明
+            | 文件 | 说明 |
+            |------|------|
+            | `*.img.gz` | 固件镜像，使用 dd 或 balenaEtcher 写入 |
+            | `sha256sum.txt` | SHA256 校验文件 |
+
+            ## 安装方法
+            ```bash
+            # 解压
+            gunzip openwrt-*.img.gz
+            # 写入磁盘 (替换 /dev/sdX 为你的磁盘)
+            dd if=openwrt-*.img of=/dev/sdX bs=4M status=progress && sync
+            ```
+          files: openwrt/firmware_output/*
+          draft: false
+          prerelease: false
+
+      # --------------------------------------------------
+      # 12. 清理旧版本
+      # --------------------------------------------------
+      - name: Clean old releases
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          keep_latest: 5
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete old workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          retain_days: 7
+          keep_minimum_runs: 3

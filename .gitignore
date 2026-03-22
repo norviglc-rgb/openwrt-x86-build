@@ -1,0 +1,23 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts (本地编译时)
+openwrt/
+*.img
+*.img.gz
+*.iso
+*.bin
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/

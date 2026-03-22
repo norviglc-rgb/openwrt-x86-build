@@ -1,0 +1,25 @@
+# ============================================================
+# 代理插件配置 (OpenClash + PassWall 共存)
+# ============================================================
+
+# OpenClash
+CONFIG_PACKAGE_luci-app-openclash=y
+CONFIG_PACKAGE_coreutils-base64=y
+CONFIG_PACKAGE_coreutils-nohup=y
+CONFIG_PACKAGE_iptables-mod-tproxy=y
+CONFIG_PACKAGE_kmod-ipt-tproxy=y
+CONFIG_PACKAGE_dnsmasq-full=y
+
+# PassWall
+CONFIG_PACKAGE_luci-app-passwall=y
+CONFIG_PACKAGE_ipt2socks=y
+CONFIG_PACKAGE_dns2socks=y
+CONFIG_PACKAGE_redsocks2=y
+CONFIG_PACKAGE_microsocks=y
+
+# 核心依赖
+CONFIG_PACKAGE_kmod-tun=y
+CONFIG_PACKAGE_ip-full=y
+CONFIG_PACKAGE_ipset=y
+CONFIG_PACKAGE_iptables-mod-extra=y
+CONFIG_PACKAGE_iptables-mod-nat-extra=y

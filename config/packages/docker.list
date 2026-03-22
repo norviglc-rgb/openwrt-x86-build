@@ -1,0 +1,20 @@
+# ============================================================
+# Docker 支持配置
+# ============================================================
+
+# Docker 核心组件
+CONFIG_PACKAGE_dockerd=y
+CONFIG_PACKAGE_docker=y
+CONFIG_PACKAGE_docker-compose=y
+
+# LuCI Docker 管理界面
+CONFIG_PACKAGE_luci-app-docker=y
+
+# 网络支持
+CONFIG_PACKAGE_kmod-br-netfilter=y
+CONFIG_PACKAGE_kmod-xt-conntrack=y
+
+# 存储支持
+CONFIG_PACKAGE_kmod-fs-overlayfs=y
+CONFIG_PACKAGE_btrfs-progs=y
+CONFIG_PACKAGE_kmod-fs-btrfs=y
