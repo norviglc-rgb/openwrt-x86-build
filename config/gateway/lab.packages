@@ -1,0 +1,39 @@
+# 实验镜像增量：仅在 lab 构建，不代表全部可以同时启用
+# 与 OpenClash 相关的官方运行依赖
+luci-app-openclash
+bash
+curl
+unzip
+ruby
+ruby-yaml
+luci-compat
+kmod-tun
+kmod-nft-tproxy
+kmod-inet-diag
+# Argon 主题、中文
+luci-theme-argon
+luci-app-argon-config
+luci-i18n-argon-config-zh-cn
+# banIP
+banip
+luci-app-banip
+# qosify：只用于与 QoSmate 分别测试，绝不同时运行
+qosify
+# 轻量历史与设备统计
+nlbwmon
+luci-app-nlbwmon
+luci-app-statistics
+collectd
+collectd-mod-cpu
+collectd-mod-memory
+collectd-mod-interface
+collectd-mod-load
+collectd-mod-rrdtool
+smartmontools
+lm-sensors
+htop
+# Bandix Plus：前端需要独立后端，实验版仅测试流量统计，不启用其限速
+bandix-plus
+luci-app-bandix-plus
+luci-i18n-bandix-plus-zh-cn
+# QoSmate 尚需 25.12.6 SDK 构建并验证依赖，不能假称已经集成。
