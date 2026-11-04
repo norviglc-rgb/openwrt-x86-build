@@ -12,6 +12,7 @@ kmod-nft-tproxy
 kmod-inet-diag
 # Argon 主题、中文
 luci-theme-argon
+luci-app-argon-config
 luci-i18n-argon-config-zh-cn
 # banIP
 banip
