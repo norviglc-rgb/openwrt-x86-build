@@ -4,4 +4,4 @@
 
 本分支的新工作流完全不再调用旧版 scripts/diy-part1.sh、scripts/diy-part2.sh，不读取旧 settings.ini、feeds.conf 或 config/x86-64.config。
 
-这些文件暂留仓库中用于审计比较；不能把它们当作现行构建依据。待新流程通过生产验证，再另外提出删除旧文件的变更。
+旧配置文件已从当前分支删除，保留在 Git 历史供审计比较。无法再作为运行的构建配置。

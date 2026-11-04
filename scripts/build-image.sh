@@ -33,7 +33,7 @@ if [ "$PROFILE" = "lab" ]; then
       *[!a-zA-Z0-9._-]*) echo "非法文件名 $name" >&2; exit 1 ;;
     esac
     case "$url" in
-      https://github.com/vernesong/OpenClash/releases/download/*|https://github.com/jerrykuku/luci-theme-argon/releases/download/*|https://github.com/timsaya/luci-app-bandix-plus/releases/download/*) ;;
+      https://github.com/vernesong/OpenClash/releases/download/*|https://github.com/jerrykuku/luci-theme-argon/releases/download/*|https://github.com/timsaya/luci-app-bandix-plus/releases/download/*|https://github.com/timsaya/openwrt-bandix-plus/releases/download/*) ;;
       *) echo "第三方来源不在白名单内: $url" >&2; exit 1 ;;
     esac
     [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || { echo "非法 SHA: $name" >&2; exit 1; }
@@ -49,7 +49,7 @@ DISABLED_SERVICES=""
 if [ "$PROFILE" = "lab" ]; then
   PACKAGES="$PACKAGES $(sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "$ROOT/config/gateway/lab.packages" | tr '\n' ' ')"
   # 实验插件默认不启动。未通过实机兼容测试前，不允许接管真实流量。
-  DISABLED_SERVICES="openclash qosify banip bandix bandix-plus"
+  DISABLED_SERVICES="openclash qosify banip bandix-plus"
 fi
 
 cd "$IB"

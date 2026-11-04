@@ -32,7 +32,8 @@ collectd-mod-rrdtool
 smartmontools
 lm-sensors
 htop
-# Bandix Plus：实验版仅测试流量统计，不启用其限速
+# Bandix Plus：前端需要独立后端，实验版仅测试流量统计，不启用其限速
+bandix-plus
 luci-app-bandix-plus
 luci-i18n-bandix-plus-zh-cn
 # QoSmate 尚需 25.12.6 SDK 构建并验证依赖，不能假称已经集成。

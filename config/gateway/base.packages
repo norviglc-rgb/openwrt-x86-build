@@ -9,6 +9,8 @@ dnsmasq-full
 firewall4
 nftables
 kmod-igc
+kmod-ata-ahci
+kmod-fs-ext4
 ppp
 ppp-mod-pppoe
 luci-proto-ppp
