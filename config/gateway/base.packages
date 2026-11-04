@@ -1,0 +1,26 @@
+# 官方 OpenWrt 25.12.6 x86/64：基础镜像（不包含未经验证的第三方插件）
+luci-ssl
+luci-i18n-base-zh-cn
+luci-app-firewall
+luci-i18n-firewall-zh-cn
+luci-app-package-manager
+dnsmasq-full
+-dnsmasq
+firewall4
+nftables
+kmod-igc
+ppp
+ppp-mod-pppoe
+luci-proto-ppp
+odhcp6c
+odhcpd-ipv6only
+luci-proto-ipv6
+wireguard-tools
+kmod-wireguard
+luci-proto-wireguard
+ca-bundle
+ip-full
+ethtool
+tcpdump
+kmod-sched-cake
+tc-full
