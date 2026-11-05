@@ -53,6 +53,9 @@ cp -a "$WORK/source/qosmate/." package/qosmate/
 cp -a "$WORK/source/luci-app-qosmate/." package/luci-app-qosmate/
 cp -a "$WORK/source/internet-detector/internet-detector/." package/internet-detector/
 cp -a "$WORK/source/internet-detector/luci-app-internet-detector/." package/luci-app-internet-detector/
+# 使用仓库已校对的简体中文 gettext 翻译，让 SDK 一并生成中文 APK。
+mkdir -p package/luci-app-internet-detector/po/zh_Hans
+cp "$ROOT/assets/i18n/internet-detector.zh_Hans.po" package/luci-app-internet-detector/po/zh_Hans/internet-detector.po
 
 cat >> .config <<'EOF'
 CONFIG_PACKAGE_qosmate=m
@@ -65,14 +68,17 @@ make defconfig
 # 不会向 SDK staging_dir 提供头文件；必须先构建官方 json-c 开发依赖。
 # 2026-11-05 CI #41981985431 失败于 json-c/json.h 缺失，修复根因。
 echo "SDK 准备 libjson-c 开发头文件"
-make -j2 package/libs/libjson-c/compile V=s
+make -j2 package/feeds/packages/json-c/compile V=s
 test -s staging_dir/target-x86_64_musl/usr/include/json-c/json.h || {
   echo "SDK 尚未安装 libjson-c 开发头文件，停止而不继续盲目编译" >&2
   exit 1
 }
 for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detector; do
   echo "SDK 编译 $name"
-  make -j2 "package/$name/compile" V=s 2>&1 | tee "$WORK/build-$name.log" || {\n    grep -E '(^| )error:|^make.*\\*\\*\\*|^.*fatal error:' "$WORK/build-$name.log" | tail -30 >&2 || true\n    exit 1\n  }
+  make -j2 "package/$name/compile" V=s 2>&1 | tee "$WORK/build-$name.log" || {
+    grep -E '(^| )error:|^make.*\*\*\*|^.*fatal error:' "$WORK/build-$name.log" | tail -30 >&2 || true
+    exit 1
+  }
 done
 
 for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detector; do
@@ -87,6 +93,6 @@ for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detecto
 done
 
 # 如果项目生成了简体中文包，则一起复制；最终必须在 ImageBuilder 中校验。
-find "$SDK/bin" -type f -name 'luci-i18n-qosmate-zh-cn*.apk' -exec cp -v '{}' "$OUT/" \;
+find "$SDK/bin" -type f \( -name 'luci-i18n-qosmate-zh-cn*.apk' -o -name 'luci-i18n-internet-detector-zh-cn*.apk' \) -exec cp -v '{}' "$OUT/" \;
 echo "SDK 编译完毕："
 find "$OUT" -maxdepth 1 -type f -name '*.apk' -printf '%f\n' | sort
