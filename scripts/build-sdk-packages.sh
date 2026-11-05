@@ -68,6 +68,17 @@ CONFIG_PACKAGE_internet-detector=m
 CONFIG_PACKAGE_luci-app-internet-detector=m
 EOF
 make defconfig
+# SDK 不含 OpenWrt 主树的全部 package/libs 定义；从 25.12.6
+# 官方 release 对应的固定 commit 引入单独 libjson-c Makefile。
+# 这不是额外第三方源码，JSON-C 源码内容仍由上游 PKG_HASH 校验。
+mkdir -p package/libs/libjson-c
+curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+  -o package/libs/libjson-c/Makefile \
+  "https://raw.githubusercontent.com/openwrt/openwrt/64900e756efa667774214f9c6b17c113222e01f7/package/libs/libjson-c/Makefile"
+grep -Fqx 'PKG_HASH:=602cdefc1d2aab8318fc0814b7ce7d59e72514d4276ca3eff92f35f86cf1c160' \
+  package/libs/libjson-c/Makefile || { echo "libjson-c 官方源码哈希不符合预期" >&2; exit 1; }
+make defconfig
+
 # LuCI SDK 需要 libjson-c 的开发头文件。ImageBuilder 的运行时 APK
 # 不会向 SDK staging_dir 提供头文件；必须先构建官方 json-c 开发依赖。
 # 2026-11-05 CI #41981985431 失败于 json-c/json.h 缺失，修复根因。
