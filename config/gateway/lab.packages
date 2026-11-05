@@ -1,5 +1,4 @@
-# 实验镜像增量：仅在 lab 构建，不代表全部可以同时启用
-# 与 OpenClash 相关的官方运行依赖
+# lab: 候选插件全部安装，但涉及流量接管的服务默认禁用
 luci-app-openclash
 bash
 curl
@@ -10,16 +9,16 @@ luci-compat
 kmod-tun
 kmod-nft-tproxy
 kmod-inet-diag
-# Argon 主题、中文
 luci-theme-argon
 luci-app-argon-config
 luci-i18n-argon-config-zh-cn
-# banIP
 banip
 luci-app-banip
-# qosify：只用于与 QoSmate 分别测试，绝不同时运行
+# QoS：QoSmate 和 qosify 必须分别启用
+qosmate
+luci-app-qosmate
 qosify
-# 轻量历史与设备统计
+# 轻量指标与增强流量监控
 nlbwmon
 luci-app-nlbwmon
 luci-app-statistics
@@ -32,8 +31,17 @@ collectd-mod-rrdtool
 smartmontools
 lm-sensors
 htop
-# Bandix Plus：前端需要独立后端，实验版仅测试流量统计，不启用其限速
 bandix-plus
 luci-app-bandix-plus
 luci-i18n-bandix-plus-zh-cn
-# QoSmate 尚需 25.12.6 SDK 构建并验证依赖，不能假称已经集成。
+# 断网检测和通知（不设定令牌，也不启用自动重启）
+internet-detector
+luci-app-internet-detector
+luci-app-wechatpush
+luci-i18n-wechatpush-zh-cn
+# Hyper-V 手动安全根分区扩容工具
+parted
+resize2fs
+losetup
+lsblk
+blkid
