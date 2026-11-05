@@ -34,9 +34,19 @@ clone_pinned luci-app-qosmate https://github.com/hudra0/luci-app-qosmate.git f37
 clone_pinned internet-detector https://github.com/gSpotx2f/luci-app-internet-detector.git e265fcc8a9d9fd359f29fd0188ab2da3ce1438fa
 
 cd "$SDK"
+# SDK 只准备本项目确实使用的 feed 定义。
+# 不能 install -a：会激活整个 LuCI + packages 生态，触发 weechat
+# 递归依赖及无关内核模块的编译（2026-11-05 CI #30 亲测）。
 ./scripts/feeds update luci packages
-./scripts/feeds install -a -p luci
-./scripts/feeds install -a -p packages
+./scripts/feeds install -p packages lua luaposix json-c || {
+  echo "核心 Lua/json-c 定义无法安装到 SDK" >&2; exit 1;
+}
+./scripts/feeds install -p luci luci-base luci-lib-jsonc || {
+  echo "核心 LuCI 定义无法安装到 SDK" >&2; exit 1;
+}
+# 只选构建目标；关闭 SDK 的「所有包 / 所有内核模块」模式。
+# ImageBuilder 随后会从 OpenWrt 官方软件源解析完整运行时依赖。
+sed -i '/^CONFIG_ALL=y$/d; /^CONFIG_ALL_KMODS=y$/d; /^CONFIG_ALL_NONSHARED=y$/d' .config
 
 mkdir -p package/qosmate package/luci-app-qosmate package/internet-detector package/luci-app-internet-detector
 cp -a "$WORK/source/qosmate/." package/qosmate/
@@ -53,7 +63,7 @@ EOF
 make defconfig
 for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detector; do
   echo "SDK 编译 $name"
-  make -j2 "package/$name/compile" V=s
+  make -j2 "package/$name/compile" V=s 2>&1 | tee "$WORK/build-$name.log" || {\n    grep -E '(^| )error:|^make.*\\*\\*\\*|^.*fatal error:' "$WORK/build-$name.log" | tail -30 >&2 || true\n    exit 1\n  }
 done
 
 for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detector; do
