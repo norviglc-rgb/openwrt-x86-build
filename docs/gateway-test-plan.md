@@ -10,7 +10,7 @@
 - [ ] Gen1 使用 BIOS VHDX 引导成功。
 - [ ] Gen2 使用 UEFI VHDX 并关闭 Secure Boot 引导成功。
 - [ ] Hyper-V 网络/存储驱动可用，LuCI、SSH、DHCP、DNS、IPv4/IPv6 可用；不要直接套用物理 eth0-eth3。
-- [ ] 在新测试盘上执行两阶段安全扩容；附加第三个分区后必须拒绝扩容，原盘数据保持不变。
+- [ ] 全新测试盘第一次启动自动调整第二分区并重启一次，第二次启动自动扩 ext4；附加第三个分区后必须拒绝扩容，原盘数据保持不变。
 
 ## J4125 实机
 - [ ] I225-V 四口均识别；PPPoE 拨号、DHCPv6/RA、WireGuard、DNS/防火墙正常。

@@ -62,9 +62,25 @@ if [ "$PROFILE" = lab ]; then
   mkdir -p "$IB/files/etc/openclash/core" "$IB/files/usr/sbin"
   gzip -dc "$CORE" > "$IB/files/etc/openclash/core/clash_meta"
   chmod 0755 "$IB/files/etc/openclash/core/clash_meta"
-  cp "$ROOT/scripts/expand-hyperv-root-safe.sh" "$IB/files/usr/sbin/expand-hyperv-root-safe"
-  chmod 0755 "$IB/files/usr/sbin/expand-hyperv-root-safe"
 fi
+
+# 所有 x86 测试镜像内置 Hyper-V 安全扩容工具。启动脚本会自动检测 DMI，
+# 非 Microsoft Corporation 虚拟机立即退出，不触碰物理机的任何分区。
+mkdir -p "$IB/files/usr/sbin" "$IB/files/etc/init.d" "$IB/files/etc/rc.d"
+cp "$ROOT/scripts/expand-hyperv-root-safe.sh" "$IB/files/usr/sbin/expand-hyperv-root-safe"
+chmod 0755 "$IB/files/usr/sbin/expand-hyperv-root-safe"
+cat > "$IB/files/etc/init.d/hyperv-autogrow" <<'INIT'
+#!/bin/sh /etc/rc.common
+# 仅对 Hyper-V 两分区 ext4 根磁盘自动扩容；现网物理机不改变分区。
+START=97
+start() {
+  [ -f /sys/class/dmi/id/sys_vendor ] || return 0
+  [ "$(cat /sys/class/dmi/id/sys_vendor)" = "Microsoft Corporation" ] || return 0
+  /usr/sbin/expand-hyperv-root-safe --auto >> /tmp/hyperv-autogrow.log 2>&1
+}
+INIT
+chmod 0755 "$IB/files/etc/init.d/hyperv-autogrow"
+ln -s ../init.d/hyperv-autogrow "$IB/files/etc/rc.d/S97hyperv-autogrow"
 
 PACKAGES="$(sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "$ROOT/config/gateway/base.packages" | tr '\n' ' ')"
 DISABLED=''
@@ -110,7 +126,9 @@ Hyper-V images: Gen1(BIOS)/Gen2(UEFI), ext4 dynamic VHDX
 Gen2 requires Secure Boot disabled
 Root filesystem partition: $ROOTFS_MIB MiB
 Virtual disk size: $HYPERV_DISK_GIB GiB
-Unallocated capacity: safe grow helper included in lab, NOT enabled automatically
+Hyper-V auto-grow: enabled for safe two-partition ext4 Hyper-V guests only
+Physical auto-grow: disabled (protect physical sda4 data partition)
+Auto-grow: stage1 partition resize + one reboot; stage2 ext4 online resize
 Auto-flash / secrets: none
 Verification: build-only; real device/VM/network functionality remains untested
 EOF

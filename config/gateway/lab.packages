@@ -39,9 +39,4 @@ internet-detector
 luci-app-internet-detector
 luci-app-wechatpush
 luci-i18n-wechatpush-zh-cn
-# Hyper-V 手动安全根分区扩容工具
-parted
-resize2fs
-losetup
-lsblk
-blkid
+# Hyper-V 自动根分区扩容工具已经由 base.packages 提供

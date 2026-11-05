@@ -26,3 +26,9 @@ ethtool
 tcpdump
 kmod-sched-cake
 tc-full
+
+# Hyper-V 来宾安全扩容所需工具；仅在 Microsoft Hyper-V 虚拟机使用
+parted
+resize2fs
+lsblk
+blkid

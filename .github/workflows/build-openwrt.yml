@@ -1,6 +1,17 @@
 name: OpenWrt 25.12.6 物理机与 Hyper-V
 on:
   workflow_dispatch:
+    inputs:
+      rootfs_mib:
+        description: "ext4 根分区初始大小（MiB，512–8192）"
+        required: false
+        default: "2048"
+        type: string
+      hyperv_disk_gib:
+        description: "Hyper-V 虚拟硬盘容量（GiB，8–64）"
+        required: false
+        default: "16"
+        type: string
   push:
     branches: [main]
     paths:
@@ -48,8 +59,8 @@ jobs:
           test -s config/gateway/lab.packages
       - name: 生成实体机与 Hyper-V 固件
         env:
-          ROOTFS_MIB: "2048"
-          HYPERV_DISK_GIB: "16"
+          ROOTFS_MIB: ${{ inputs.rootfs_mib || '2048' }}
+          HYPERV_DISK_GIB: ${{ inputs.hyperv_disk_gib || '16' }}
         run: bash scripts/build-image.sh "${{ matrix.profile }}"
       - name: 上传镜像和校验文件（未验证，仅实验）
         if: success()
