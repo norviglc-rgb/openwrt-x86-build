@@ -38,8 +38,8 @@ cd "$SDK"
 # 不能 install -a：会激活整个 LuCI + packages 生态，触发 weechat
 # 递归依赖及无关内核模块的编译（2026-11-05 CI #30 亲测）。
 ./scripts/feeds update luci packages
-./scripts/feeds install -p packages lua luaposix json-c || {
-  echo "核心 Lua/json-c 定义无法安装到 SDK" >&2; exit 1;
+./scripts/feeds install -p packages lua luaposix || {
+  echo "核心 Lua 定义无法安装到 SDK" >&2; exit 1;
 }
 ./scripts/feeds install -p luci luci-base luci-lib-jsonc || {
   echo "核心 LuCI 定义无法安装到 SDK" >&2; exit 1;
@@ -68,7 +68,7 @@ make defconfig
 # 不会向 SDK staging_dir 提供头文件；必须先构建官方 json-c 开发依赖。
 # 2026-11-05 CI #41981985431 失败于 json-c/json.h 缺失，修复根因。
 echo "SDK 准备 libjson-c 开发头文件"
-make -j2 package/feeds/packages/json-c/compile V=s
+make -j2 package/libs/libjson-c/compile V=s
 test -s staging_dir/target-x86_64_musl/usr/include/json-c/json.h || {
   echo "SDK 尚未安装 libjson-c 开发头文件，停止而不继续盲目编译" >&2
   exit 1
