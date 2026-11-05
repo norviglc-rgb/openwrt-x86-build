@@ -81,10 +81,43 @@ grep -Fqx 'PKG_HASH:=602cdefc1d2aab8318fc0814b7ce7d59e72514d4276ca3eff92f35f86cf
 # json-c 0.18 的 apps/CMakeLists.txt 在 Runner 的 CMake 4.x 下不兼容。
 # 官方较新版 OpenWrt Makefile 采用 -DBUILD_APPS=OFF；libjson-c 库
 # 构建不需要安装 json-c 的示例应用。必须在 CMAKE_OPTIONS 中显式禁用。
-cat >> package/libs/libjson-c/Makefile <<'EOF'
+# 必须插入到 BuildPackage/HostBuild 求值之前；放在 Makefile 结尾不会生效。
+sed -i '/^$(eval $(call BuildPackage,libjson-c))/i CMAKE_OPTIONS += -DBUILD_APPS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5' package/libs/libjson-c/Makefile
+grep -q '^CMAKE_OPTIONS += -DBUILD_APPS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 
-CMAKE_OPTIONS += -DBUILD_APPS=OFF
-EOF
+# LuCI SDK 需要 libjson-c 的开发头文件。ImageBuilder 的运行时 APK
+# 不会向 SDK staging_dir 提供头文件；必须先构建官方 json-c 开发依赖。
+# 2026-11-05 CI #41981985431 失败于 json-c/json.h 缺失，修复根因。
+echo "SDK 准备 libjson-c 开发头文件"
+make -j2 package/libs/libjson-c/compile V=s
+test -s staging_dir/target-x86_64_musl/usr/include/json-c/json.h || {
+  echo "SDK 尚未安装 libjson-c 开发头文件，停止而不继续盲目编译" >&2
+  exit 1
+}
+for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detector; do
+  echo "SDK 编译 $name"
+  make -j2 "package/$name/compile" V=s 2>&1 | tee "$WORK/build-$name.log" || {
+    grep -E '(^| )error:|^make.*\*\*\*|^.*fatal error:' "$WORK/build-$name.log" | tail -30 >&2 || true
+    exit 1
+  }
+done
+
+for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detector; do
+  mapfile -t found < <(find "$SDK/bin" -type f \( -name "$name-*.apk" -o -name "${name}_*.apk" \))
+  (("${#found[@]}" == 1)) || { printf '无法唯一确认 %s 产物: %s\n' "$name" "${found[*]}" >&2; exit 1; }
+  path="${found[0]}"
+  file="$(basename "$path")"
+  file="${file%.apk}"
+  file="${file%_x86_64}"
+  file="${file%_all}"
+  cp -v "$path" "$OUT/$file.apk"
+done
+
+# 如果项目生成了简体中文包，则一起复制；最终必须在 ImageBuilder 中校验。
+find "$SDK/bin" -type f \( -name 'luci-i18n-qosmate-zh-cn*.apk' -o -name 'luci-i18n-internet-detector-zh-cn*.apk' \) -exec cp -v '{}' "$OUT/" \;
+echo "SDK 编译完毕："
+find "$OUT" -maxdepth 1 -type f -name '*.apk' -printf '%f\n' | sort
+ package/libs/libjson-c/Makefile
 make defconfig
 
 # LuCI SDK 需要 libjson-c 的开发头文件。ImageBuilder 的运行时 APK
