@@ -49,7 +49,6 @@ cd "$SDK"
 # 官方预编译 SDK 可能不自带 .config。先创建初始文件，随后 make defconfig。
 # 不得在不存在的 .config 上执行 sed（CI #42057021279 的直接失败原因）。
 touch .config
-touch .config
 sed -i '/^CONFIG_ALL=y$/d; /^CONFIG_ALL_KMODS=y$/d; /^CONFIG_ALL_NONSHARED=y$/d' .config
 
 mkdir -p package/qosmate package/luci-app-qosmate package/internet-detector package/luci-app-internet-detector
@@ -79,10 +78,12 @@ grep -Fqx 'PKG_HASH:=602cdefc1d2aab8318fc0814b7ce7d59e72514d4276ca3eff92f35f86cf
   package/libs/libjson-c/Makefile || { echo "libjson-c 官方源码哈希不符合预期" >&2; exit 1; }
 # Runner 中的新版 CMake 已移除对低于 3.5 的兼容默认值，
 # libjson-c 0.18 上游 apps/CMakeLists.txt 仍声明更早的最低版本。
-# 仅为这一个 SDK 构建添加 CMake 兼容策略，不修改运行时二进制配置。
+# json-c 0.18 的 apps/CMakeLists.txt 在 Runner 的 CMake 4.x 下不兼容。
+# 官方较新版 OpenWrt Makefile 采用 -DBUILD_APPS=OFF；libjson-c 库
+# 构建不需要安装 json-c 的示例应用。必须在 CMAKE_OPTIONS 中显式禁用。
 cat >> package/libs/libjson-c/Makefile <<'EOF'
 
-CMAKE_OPTIONS += -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+CMAKE_OPTIONS += -DBUILD_APPS=OFF
 EOF
 make defconfig
 
