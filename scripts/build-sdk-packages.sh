@@ -46,6 +46,9 @@ cd "$SDK"
 }
 # 只选构建目标；关闭 SDK 的「所有包 / 所有内核模块」模式。
 # ImageBuilder 随后会从 OpenWrt 官方软件源解析完整运行时依赖。
+# 官方预编译 SDK 可能不自带 .config。先创建初始文件，随后 make defconfig。
+# 不得在不存在的 .config 上执行 sed（CI #42057021279 的直接失败原因）。
+touch .config
 sed -i '/^CONFIG_ALL=y$/d; /^CONFIG_ALL_KMODS=y$/d; /^CONFIG_ALL_NONSHARED=y$/d' .config
 
 mkdir -p package/qosmate package/luci-app-qosmate package/internet-detector package/luci-app-internet-detector
