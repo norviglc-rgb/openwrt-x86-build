@@ -1,0 +1,687 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\\n"
+"Language: zh_CN\\n"
+"Plural-Forms: nplurals=1; plural=0;\\n"
+
+msgid "<abbr title=\"Light Emitting Diode\">LED</abbr> Name"
+msgstr "LED 名称"
+
+msgid "<abbr title=\"Light Emitting Diode\">LED</abbr> control"
+msgstr "LED 控制"
+
+msgid "<abbr title=\"Light Emitting Diode\">LED</abbr> indicates the Internet status."
+msgstr "LED 用于显示互联网连接状态。"
+
+msgid "<abbr title=\"Light Emitting Diode\">LED</abbr> mode"
+msgstr "LED 模式"
+
+msgid "<abbr title=\"Light Emitting Diode\">LED</abbr> will display the link activity of this network device."
+msgstr "LED 将显示该网络设备的链路活动。"
+
+msgid "Add instance"
+msgstr "添加检测实例"
+
+msgid "After connection"
+msgstr "连接后"
+
+msgid "After disconnection"
+msgstr "断开后"
+
+msgid "Alive interval"
+msgstr "在线检测间隔"
+
+msgid "Alive period"
+msgstr "在线持续时间"
+
+msgid "An email will be sent when connected or disconnected from the Internet."
+msgstr "连接或断开互联网时发送电子邮件。"
+
+msgid "An error has occurred"
+msgstr "发生错误"
+
+msgid "Attempt interval"
+msgstr "重试间隔"
+
+msgid "Attempts"
+msgstr "尝试次数"
+
+msgid "Big: 248 bytes"
+msgstr "较大：248 字节"
+
+msgid "Blinking (kernel: timer)"
+msgstr "闪烁（内核计时器）"
+
+msgid "Bot API token is missing!"
+msgstr "缺少机器人 API 令牌！"
+
+msgid "Bot token"
+msgstr "机器人令牌"
+
+msgid "Chat ID"
+msgstr "聊天 ID"
+
+msgid "Check type"
+msgstr "检测类型"
+
+msgid "Checking Internet availability."
+msgstr "正在检测互联网连通性。"
+
+msgid "Checking the real public IP address."
+msgstr "正在查询真实公网 IP 地址。"
+
+msgid "Command failed"
+msgstr "命令执行失败"
+
+msgid "Connected"
+msgstr "已连接"
+
+msgid "Connection attempts"
+msgstr "连接尝试次数"
+
+msgid "Connection timeout"
+msgstr "连接超时"
+
+msgid "Contents have been saved."
+msgstr "内容已保存。"
+
+msgid "Curl is not available..."
+msgstr "curl 不可用……"
+
+msgid "Dead interval"
+msgstr "离线检测间隔"
+
+msgid "Dead period"
+msgstr "离线持续时间"
+
+msgid "Debug"
+msgstr "调试"
+
+msgid "Default port value for TCP connections."
+msgstr "TCP 连接使用的默认端口。"
+
+msgid "Description"
+msgstr "说明"
+
+msgid "Device"
+msgstr "设备"
+
+msgid "Device will be rebooted when the Internet is disconnected."
+msgstr "互联网断开时将重新启动设备。"
+
+msgid "Disable forced reboot"
+msgstr "禁用强制重启"
+
+msgid "Disabled"
+msgstr "已禁用"
+
+msgid "Disabled: detector is completely off."
+msgstr "已禁用：检测服务完全关闭。"
+
+msgid "Disconnected"
+msgstr "已断开"
+
+msgid "Dismiss"
+msgstr "关闭"
+
+msgid "DNS query type"
+msgstr "DNS 查询类型"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "Edit down-script"
+msgstr "编辑断网脚本"
+
+msgid "Edit regular-script"
+msgstr "编辑定时脚本"
+
+msgid "Edit public-ip-script"
+msgstr "编辑公网 IP 脚本"
+
+msgid "Edit up-script"
+msgstr "编辑联网脚本"
+
+msgid "Email notification"
+msgstr "邮件通知"
+
+msgid "Email address of the recipient."
+msgstr "收件人的电子邮箱地址。"
+
+msgid "Email address of the sender."
+msgstr "发件人的电子邮箱地址。"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "Enable public-ip-script"
+msgstr "启用公网 IP 变化脚本"
+
+msgid "Enabled"
+msgstr "已启用"
+
+msgid "Error"
+msgstr "错误"
+
+msgid "Error!"
+msgstr "错误！"
+
+msgid "Expecting:"
+msgstr "预期："
+
+msgid "Failed interval"
+msgstr "失败后的检测间隔"
+
+msgid "Failed to get %s init status: %s"
+msgstr "无法获取 %s 的初始化状态：%s"
+
+msgid "Forced reboot delay"
+msgstr "强制重启前等待时间"
+
+msgid "Host alias"
+msgstr "主机别名"
+
+msgid "Host availability check type."
+msgstr "主机可用性检测方式。"
+
+msgid "Host identifier in messages. If not specified, hostname will be used."
+msgstr "消息中使用的主机标识；未填写时使用系统主机名。"
+
+msgid "Hostname/IP address of the SMTP server."
+msgstr "SMTP 服务器的域名或 IP 地址。"
+
+msgid "Hosts"
+msgstr "检测主机"
+
+msgid "Hosts polling interval when the Internet is down."
+msgstr "网络离线时的主机轮询间隔。"
+
+msgid "Hosts polling interval when the Internet is up."
+msgstr "网络在线时的主机轮询间隔。"
+
+msgid "Hosts for checking Internet availability. Hosts are polled (in list order) until at least one responds."
+msgstr "用于检测互联网连通性的主机列表。依次检测，直到至少一个主机响应。"
+
+msgid "Huge: 1492 bytes"
+msgstr "超大：1492 字节"
+
+msgid "ID of the Telegram chat to which messages will be sent."
+msgstr "接收消息的 Telegram 聊天 ID。"
+
+msgid "ICMP-echo request (ping)"
+msgstr "ICMP 回显请求（ping）"
+
+msgid "ICMP packet data size"
+msgstr "ICMP 数据包大小"
+
+msgid "Incorrect bot token?"
+msgstr "机器人令牌是否正确？"
+
+msgid "Info"
+msgstr "信息"
+
+msgid "Instances"
+msgstr "检测实例"
+
+msgid "Interface"
+msgstr "网络接口"
+
+msgid "Interface timeout"
+msgstr "接口超时"
+
+msgid "Internet"
+msgstr "互联网"
+
+msgid "Internet Detector"
+msgstr "互联网连通性检测"
+
+msgid "Internet detector mode"
+msgstr "互联网检测模式"
+
+msgid "Internet status"
+msgstr "互联网状态"
+
+msgid "Interval between IP address requests."
+msgstr "查询公网 IP 的时间间隔。"
+
+msgid "Interval between IP address requests if the IP address is not defined."
+msgstr "没有获取到 IP 地址时再次查询的间隔。"
+
+msgid "Interval between modem restarts."
+msgstr "两次重启调制解调器之间的间隔。"
+
+msgid "Interval between network restarts."
+msgstr "两次重启网络之间的间隔。"
+
+msgid "Interval between down-script runs."
+msgstr "两次执行断网脚本之间的间隔。"
+
+msgid "Interval between up-script runs."
+msgstr "两次执行联网脚本之间的间隔。"
+
+msgid "Invalid instance name..."
+msgstr "无效的实例名称……"
+
+msgid "Jumbo: 9000 bytes"
+msgstr "巨型帧：9000 字节"
+
+msgid "LED control"
+msgstr "LED 控制"
+
+msgid "Link On"
+msgstr "链路开启"
+
+msgid "Loading"
+msgstr "加载中"
+
+msgid "Log event level."
+msgstr "日志事件级别。"
+
+msgid "Logging"
+msgstr "日志记录"
+
+msgid "Mailsend is not available..."
+msgstr "邮件发送工具不可用……"
+
+msgid "Main settings"
+msgstr "基本设置"
+
+msgid "Maximum number of attempts to connect to each host."
+msgstr "连接每个主机时允许的最大尝试次数。"
+
+msgid "Maximum number of network restart attempts before Internet access is available."
+msgstr "网络恢复前允许的最大网络重启次数。"
+
+msgid "Maximum number of up-script run attempts when connected to the Internet."
+msgstr "联网后允许的最大联网脚本执行次数。"
+
+msgid "Maximum number of down-script run attempts before Internet access is available."
+msgstr "联网恢复前允许的最大断网脚本执行次数。"
+
+msgid "Maximum timeout for waiting for a response from the host."
+msgstr "等待主机响应的最长时间。"
+
+msgid "ModemManager is not available..."
+msgstr "ModemManager 不可用……"
+
+msgid "Modem will be restarted when the Internet is disconnected."
+msgstr "互联网断开时将重启调制解调器。"
+
+msgid "ModemManger interface. If specified, it will be restarted after restarting ModemManager."
+msgstr "ModemManager 接口；设置后会在重启 ModemManager 后再次重启该接口。"
+
+msgid "Network device activity (kernel: netdev)"
+msgstr "网络设备活动（内核 netdev）"
+
+msgid "Network device for Internet access. If not specified, the default device is used."
+msgstr "用于访问互联网的网络设备；留空使用默认设备。"
+
+msgid "Network device for sending messages. If not specified, the default device is used."
+msgstr "用于发送消息的网络设备；留空使用默认设备。"
+
+msgid "Network device or interface to restart. If not specified, then the network service is restarted."
+msgstr "需要重启的网络设备或接口；留空则重启网络服务。"
+
+msgid "Network will be restarted when the Internet is disconnected."
+msgstr "互联网断开时将重启网络。"
+
+msgid "Next run"
+msgstr "下次运行"
+
+msgid "No <abbr title=\"Light Emitting Diode\">LED</abbr>s available..."
+msgstr "没有可用的 LED……"
+
+msgid "No messages available. Write something to the bot and try again."
+msgstr "暂无消息。请先向机器人发送一条消息，然后重试。"
+
+msgid "Not scheduled"
+msgstr "未安排"
+
+msgid "Notice"
+msgstr "通知"
+
+msgid "Number of attempts to request an IP address."
+msgstr "请求 IP 地址的重试次数。"
+
+msgid "Off"
+msgstr "关闭"
+
+msgid "Off-state delay"
+msgstr "关闭状态延迟"
+
+msgid "Off-state delay for blinking option."
+msgstr "闪烁模式下的关闭状态延迟。"
+
+msgid "On"
+msgstr "开启"
+
+msgid "On startup"
+msgstr "启动时"
+
+msgid "On-state delay"
+msgstr "开启状态延迟"
+
+msgid "On-state delay for blinking option."
+msgstr "闪烁模式下的开启状态延迟。"
+
+msgid "One of the following:"
+msgstr "下列之一："
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Password for SMTP authentication."
+msgstr "SMTP 身份验证密码。"
+
+msgid "Period of time after connecting to Internet before up-script runs."
+msgstr "连接互联网后延迟多久运行联网脚本。"
+
+msgid "Period of time after connecting to the Internet before sending a message."
+msgstr "连接互联网后延迟多久发送消息。"
+
+msgid "Period of time after disconnecting from Internet before down-script runs."
+msgstr "断开互联网后延迟多久运行断网脚本。"
+
+msgid "Period of time after disconnecting from Internet before sending a message."
+msgstr "断开互联网后延迟多久发送消息。"
+
+msgid "Period of time without Internet access before modem restart."
+msgstr "互联网断开多久后重启调制解调器。"
+
+msgid "Period of time without Internet access before network restart."
+msgstr "互联网断开多久后重启网络。"
+
+msgid "Period of time without Internet access until the device is rebooted."
+msgstr "互联网断开多久后重启设备。"
+
+msgid "Polling interval"
+msgstr "轮询间隔"
+
+msgid "Provider"
+msgstr "提供商"
+
+msgid "Proxy"
+msgstr "代理"
+
+msgid "Proxy host"
+msgstr "代理服务器"
+
+msgid "Proxy password"
+msgstr "代理密码"
+
+msgid "Proxy port"
+msgstr "代理端口"
+
+msgid "Proxy user"
+msgstr "代理用户名"
+
+msgid "Public IP"
+msgstr "公网 IP"
+
+msgid "Public IP address"
+msgstr "公网 IP 地址"
+
+msgid "Reboot device"
+msgstr "重启设备"
+
+msgid "Reboot device if the Internet is disconnected at service startup."
+msgstr "服务启动时若互联网断开，则重启设备。"
+
+msgid "Receive"
+msgstr "接收"
+
+msgid "Recipient"
+msgstr "收件人"
+
+msgid "Regular script"
+msgstr "定时脚本"
+
+msgid "Request chat ID from bot API"
+msgstr "通过机器人 API 获取聊天 ID"
+
+msgid "Restart"
+msgstr "重启"
+
+msgid "Restart attempts"
+msgstr "重启尝试次数"
+
+msgid "Restart modem"
+msgstr "重启调制解调器"
+
+msgid "Restart modem if the Internet is disconnected at service startup."
+msgstr "服务启动时若互联网断开，则重启调制解调器。"
+
+msgid "Restart network"
+msgstr "重启网络"
+
+msgid "Restart network if the Internet is disconnected at service startup."
+msgstr "服务启动时若互联网断开，则重启网络。"
+
+msgid "Restart service"
+msgstr "重启服务"
+
+msgid "Device timeout"
+msgstr "设备超时"
+
+msgid "Run interval"
+msgstr "运行间隔"
+
+msgid "Run if Internet state is"
+msgstr "当互联网状态为以下情况时运行"
+
+msgid "Run service at startup"
+msgstr "开机启动服务"
+
+msgid "Run down-script if the Internet is disconnected at service startup."
+msgstr "服务启动时若互联网断开，则运行断网脚本。"
+
+msgid "Run up-script if the Internet is connected at service startup."
+msgstr "服务启动时若互联网已连接，则运行联网脚本。"
+
+msgid "Running"
+msgstr "运行中"
+
+msgid "SMTP server"
+msgstr "SMTP 服务器"
+
+msgid "SMTP server port"
+msgstr "SMTP 服务器端口"
+
+msgid "SSL: SMTP over SSL."
+msgstr "SSL：使用 SSL 连接 SMTP 服务器。"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Security"
+msgstr "安全"
+
+msgid "Send message on service startup."
+msgstr "服务启动时发送消息。"
+
+msgid "Sender"
+msgstr "发件人"
+
+msgid "Server response timeout"
+msgstr "服务器响应超时"
+
+msgid "Service"
+msgstr "服务"
+
+msgid "Service action failed \"%s %s\": %s"
+msgstr "服务操作失败“%s %s”：%s"
+
+msgid "Service configuration"
+msgstr "服务配置"
+
+msgid "Service for determining the public IP address."
+msgstr "用于获取公网 IP 地址的服务。"
+
+msgid "Service: detector always runs as a system service."
+msgstr "服务模式：检测程序始终作为系统服务运行。"
+
+msgid "Set the modem to be allowed to use any band."
+msgstr "允许调制解调器使用任意频段。"
+
+msgid "Shell commands that are run regularly."
+msgstr "定期运行的 Shell 命令。"
+
+msgid "Shell commands that run when connected to the Internet."
+msgstr "互联网连接后执行的 Shell 命令。"
+
+msgid "Shell commands that run regularly at a specified interval. Current state of the Internet is available as value of the <code>$INET_STATE</code> variable (<code>0</code> - connected, <code>1</code> - disconnected)."
+msgstr "按照指定间隔执行的 Shell 命令。当前互联网状态通过 <code>$INET_STATE</code> 变量读取（<code>0</code> 表示已连接，<code>1</code> 表示已断开）。"
+
+msgid "Shell commands that run when the public IP address changes. New IP is available as value of the <code>$PUBLIC_IP</code> variable (empty string if undefined)."
+msgstr "公网 IP 地址变化时执行的 Shell 命令。新地址通过 <code>$PUBLIC_IP</code> 变量读取（未定义时为空字符串）。"
+
+msgid "Shell commands to run when connected or disconnected from the Internet."
+msgstr "互联网连接或断开时运行的 Shell 命令。"
+
+msgid "Shell commands to run when disconnected from the Internet."
+msgstr "互联网断开时运行的 Shell 命令。"
+
+msgid "Small: 1 byte"
+msgstr "最小：1 字节"
+
+msgid "Standard: 56 bytes"
+msgstr "标准：56 字节"
+
+msgid "Stopped"
+msgstr "已停止"
+
+msgid "TCP port"
+msgstr "TCP 端口"
+
+msgid "TCP port connection"
+msgstr "TCP 端口连接"
+
+msgid "Telegram bot API token."
+msgstr "Telegram 机器人 API 令牌。"
+
+msgid "Telegram message will be sent when connected or disconnected from the Internet."
+msgstr "互联网连接或断开时将发送 Telegram 消息。"
+
+msgid "The type of record requested in the DNS query (if the service supports it)."
+msgstr "DNS 查询请求的记录类型（若服务支持）。"
+
+msgid "TLS: use STARTTLS if the server supports it."
+msgstr "TLS：服务器支持时使用 STARTTLS。"
+
+msgid "Timeout between stopping and starting a network device when restarting."
+msgstr "重启网络设备时，停止到重新启动的等待时间。"
+
+msgid "Timeout between stopping and starting a ModemManger interface when restarting."
+msgstr "重启 ModemManager 接口时，停止到重新启动的等待时间。"
+
+msgid "To support HTTP services, you need to install curl."
+msgstr "需要安装 curl 才能支持 HTTP 服务。"
+
+msgid "To support URL checking, you need to install curl."
+msgstr "需要安装 curl 才能进行 URL 检测。"
+
+msgid "Transmit"
+msgstr "发送"
+
+msgid "Type a time string"
+msgstr "输入时间长度"
+
+msgid "Unable to read the contents"
+msgstr "无法读取内容"
+
+msgid "Unable to save the contents"
+msgstr "无法保存内容"
+
+msgid "Undefined"
+msgstr "未定义"
+
+msgid "Unlock modem bands"
+msgstr "解锁调制解调器频段"
+
+msgid "URL test (HTTP)"
+msgstr "URL 检测（HTTP）"
+
+msgid "URLs for checking Internet availability. URLs are polled (in list order) until at least one returns HTTP status code 200."
+msgstr "用于检测互联网连通性的 URL 列表。依次访问，直到至少有一个 URL 返回 HTTP 状态码 200。"
+
+msgid "User"
+msgstr "用户"
+
+msgid "User scripts"
+msgstr "用户脚本"
+
+msgid "Username for SMTP authentication."
+msgstr "SMTP 身份验证用户名。"
+
+msgid "Waiting for a reboot to complete before performing a forced reboot."
+msgstr "等待当前重启完成后，才能执行强制重启。"
+
+msgid "Warning"
+msgstr "警告"
+
+msgid "Web UI only (UI detector)"
+msgstr "仅 Web 界面（界面检测）"
+
+msgid "Web UI only: detector works only when the Web UI is open (UI detector)."
+msgstr "仅 Web 界面：只有打开管理页面时才运行检测。"
+
+msgid "When email will be sent"
+msgstr "发送邮件的时机"
+
+msgid "When message will be sent"
+msgstr "发送消息的时机"
+
+msgid "Windows: 32 bytes"
+msgstr "Windows：32 字节"
+
+msgid "You need to register a new %sTelegram bot%s. Then get the bot's API token and paste it into the <code>Bot token</code> field. After that, open a chat with the bot, write something (in the Telegram app) and you will be able to get the chat ID using the <code>ID</code> button."
+msgstr "请先注册一个新的 %sTelegram 机器人%s，获取其 API 令牌并填写到 <code>机器人令牌</code>。然后在 Telegram 中打开与机器人的聊天并发送一条消息，最后通过 <code>ID</code> 按钮获取聊天 ID。"
+
+msgid "after connection"
+msgstr "连接后"
+
+msgid "after disconnection"
+msgstr "断开后"
+
+msgid "connected"
+msgstr "已连接"
+
+msgid "connected or disconnected"
+msgstr "已连接或已断开"
+
+msgid "days"
+msgstr "天"
+
+msgid "disconnected"
+msgstr "已断开"
+
+msgid "down-script"
+msgstr "断网脚本"
+
+msgid "hour"
+msgstr "小时"
+
+msgid "hours"
+msgstr "小时"
+
+msgid "infinitely"
+msgstr "无限次"
+
+msgid "min"
+msgstr "分钟"
+
+msgid "minutes"
+msgstr "分钟"
+
+msgid "msec"
+msgstr "毫秒"
+
+msgid "sec"
+msgstr "秒"
+
+msgid "seconds"
+msgstr "秒"
+
+msgid "up-script"
+msgstr "联网脚本"
+
