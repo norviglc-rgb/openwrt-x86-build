@@ -32,3 +32,5 @@ parted
 resize2fs
 lsblk
 blkid
+
+losetup
