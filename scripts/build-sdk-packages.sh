@@ -83,7 +83,8 @@ grep -Fqx 'PKG_HASH:=602cdefc1d2aab8318fc0814b7ce7d59e72514d4276ca3eff92f35f86cf
 # 构建不需要安装 json-c 的示例应用。必须在 CMAKE_OPTIONS 中显式禁用。
 # 必须插入到 BuildPackage/HostBuild 求值之前；放在 Makefile 结尾不会生效。
 sed -i '/^$(eval $(call BuildPackage,libjson-c))/i CMAKE_OPTIONS += -DBUILD_APPS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5' package/libs/libjson-c/Makefile
-grep -q '^CMAKE_OPTIONS += -DBUILD_APPS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+grep -Fq -- '-DBUILD_APPS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5' package/libs/libjson-c/Makefile
+make defconfig
 
 # LuCI SDK 需要 libjson-c 的开发头文件。ImageBuilder 的运行时 APK
 # 不会向 SDK staging_dir 提供头文件；必须先构建官方 json-c 开发依赖。
