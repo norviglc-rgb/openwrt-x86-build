@@ -77,6 +77,13 @@ curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
   "https://raw.githubusercontent.com/openwrt/openwrt/64900e756efa667774214f9c6b17c113222e01f7/package/libs/libjson-c/Makefile"
 grep -Fqx 'PKG_HASH:=602cdefc1d2aab8318fc0814b7ce7d59e72514d4276ca3eff92f35f86cf1c160' \
   package/libs/libjson-c/Makefile || { echo "libjson-c 官方源码哈希不符合预期" >&2; exit 1; }
+# Runner 中的新版 CMake 已移除对低于 3.5 的兼容默认值，
+# libjson-c 0.18 上游 apps/CMakeLists.txt 仍声明更早的最低版本。
+# 仅为这一个 SDK 构建添加 CMake 兼容策略，不修改运行时二进制配置。
+cat >> package/libs/libjson-c/Makefile <<'EOF'
+
+CMAKE_OPTIONS += -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+EOF
 make defconfig
 
 # LuCI SDK 需要 libjson-c 的开发头文件。ImageBuilder 的运行时 APK
