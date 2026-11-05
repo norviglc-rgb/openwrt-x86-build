@@ -49,6 +49,7 @@ cd "$SDK"
 # 官方预编译 SDK 可能不自带 .config。先创建初始文件，随后 make defconfig。
 # 不得在不存在的 .config 上执行 sed（CI #42057021279 的直接失败原因）。
 touch .config
+touch .config
 sed -i '/^CONFIG_ALL=y$/d; /^CONFIG_ALL_KMODS=y$/d; /^CONFIG_ALL_NONSHARED=y$/d' .config
 
 mkdir -p package/qosmate package/luci-app-qosmate package/internet-detector package/luci-app-internet-detector
