@@ -1,98 +1,120 @@
 #!/usr/bin/env bash
-# GitHub Actions 使用官方 25.12.6 ImageBuilder 构建，不执行不可信一键脚本。
+# 官方 25.12.6 ImageBuilder + 25.12.6 SDK 包 + Hyper-V Gen1/Gen2 VHDX
 set -Eeuo pipefail
-PROFILE="${1:-base}"
-case "$PROFILE" in base|lab) ;; *) echo "不支持的构建方案: $PROFILE" >&2; exit 2;; esac
-
+PROFILE="${1:-lab}"
+case "$PROFILE" in base|lab) ;; *) echo "不支持 profile: $PROFILE" >&2; exit 2;; esac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="25.12.6"
-BASE_URL="https://downloads.openwrt.org/releases/$VERSION/targets/x86/64"
+VERSION=25.12.6
+URL="https://downloads.openwrt.org/releases/$VERSION/targets/x86/64"
 ARCHIVE="openwrt-imagebuilder-$VERSION-x86-64.Linux-x86_64.tar.zst"
-EXPECTED_SHA="a792e29bd2233cda67a0823030bfb53c0b61fbb3836b2063e88adf89730d563b"
+HASH=a792e29bd2233cda67a0823030bfb53c0b61fbb3836b2063e88adf89730d563b
+ROOTFS_MIB="${ROOTFS_MIB:-2048}"
+HYPERV_DISK_GIB="${HYPERV_DISK_GIB:-16}"
+[[ "$ROOTFS_MIB" =~ ^[0-9]+$ ]] && (( ROOTFS_MIB>=512 && ROOTFS_MIB<=8192 )) || { echo 'ROOTFS_MIB 范围为 512-8192 MiB' >&2; exit 2; }
+[[ "$HYPERV_DISK_GIB" =~ ^[0-9]+$ ]] && (( HYPERV_DISK_GIB>=8 && HYPERV_DISK_GIB<=64 )) || { echo 'HYPERV_DISK_GIB 范围为 8-64 GiB' >&2; exit 2; }
+(( HYPERV_DISK_GIB*1024 > ROOTFS_MIB+64 )) || { echo 'Hyper-V 磁盘必须大于根分区' >&2; exit 2; }
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$ROOT/out/$PROFILE"
 cd "$WORK"
-
-echo "下载官方 ImageBuilder，版本 $VERSION"
-curl --fail --location --retry 3 --proto '=https' --tlsv1.2 -o "$ARCHIVE" "$BASE_URL/$ARCHIVE"
-printf '%s  %s\n' "$EXPECTED_SHA" "$ARCHIVE" | sha256sum --check --status || {
-  echo "官方 ImageBuilder SHA-256 不匹配，终止" >&2; exit 1;
-}
+curl -fL --retry 3 -o "$ARCHIVE" "$URL/$ARCHIVE"
+printf '%s  %s\n' "$HASH" "$ARCHIVE" | sha256sum -c -
 tar --zstd -xf "$ARCHIVE"
 IB="$WORK/${ARCHIVE%.tar.zst}"
-test -d "$IB" || { echo "ImageBuilder 解包目录未找到" >&2; exit 1; }
-mkdir -p "$IB/packages"
+test -d "$IB"
+mkdir -p "$IB/packages" "$IB/files"
 
-if [ "$PROFILE" = "lab" ]; then
-  echo "下载经版本与 SHA-256 固定的第三方 APK"
+if [ "$PROFILE" = lab ]; then
   while IFS='|' read -r name url digest; do
     [ -n "$name" ] || continue
     case "$name" in \#*) continue;; esac
-    case "$name" in
-      *[!a-zA-Z0-9._-]*) echo "非法文件名 $name" >&2; exit 1 ;;
-    esac
+    case "$name" in *[!a-zA-Z0-9._-]*) echo "非法文件名：$name" >&2; exit 1;; esac
     case "$url" in
-      https://github.com/vernesong/OpenClash/releases/download/*|https://github.com/jerrykuku/luci-theme-argon/releases/download/*|https://github.com/timsaya/luci-app-bandix-plus/releases/download/*|https://github.com/timsaya/openwrt-bandix-plus/releases/download/*) ;;
-      *) echo "第三方来源不在白名单内: $url" >&2; exit 1 ;;
+      https://github.com/vernesong/OpenClash/releases/download/*|https://github.com/jerrykuku/luci-theme-argon/releases/download/*|https://github.com/timsaya/luci-app-bandix-plus/releases/download/*|https://github.com/timsaya/openwrt-bandix-plus/releases/download/*|https://github.com/tty228/luci-app-wechatpush/releases/download/*) ;;
+      *) echo "非白名单来源：$url" >&2; exit 1;;
     esac
-    [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || { echo "非法 SHA: $name" >&2; exit 1; }
-    curl --fail --location --retry 3 --proto '=https' --tlsv1.2 -o "$IB/packages/$name" "$url"
-    printf '%s  %s\n' "$digest" "$IB/packages/$name" | sha256sum --check --status || {
-      echo "校验失败: $name" >&2; exit 1;
-    }
+    [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || { echo "SHA-256 格式错误：$name" >&2; exit 1; }
+    curl -fL --retry 3 -o "$IB/packages/$name" "$url"
+    printf '%s  %s\n' "$digest" "$IB/packages/$name" | sha256sum -c -
   done < "$ROOT/config/gateway/vendor.lock"
 
-  # OpenWrt 25.12 APK3 ImageBuilder 会按包元数据的「包名-版本.apk」
-  # 定位本地文件。Bandix 上游资产包含 _架构 后缀，版本中也有 . / ~ 差异。
-  # 2026-11-05 构建 #23 实际报错：索引发现包，却找不到这些 APK 文件。
-  # 下载后已先校验上游原文件 SHA-256，下面只改本地副本文件名，不改包内容。
+  # ImageBuilder 25.12.6 本地 APK 索引要求与内部包名和版本一致；
+  # 此处调整的均为已经校验过 SHA-256 的本地文件名，不修改内容。
   for mapping in \
-    "bandix-plus-0.1.3-r1_x86_64.apk|bandix-plus-0.1.3-r1.apk" \
-    "luci-app-bandix-plus-0.1.3-r2_all.apk|luci-app-bandix-plus-0.1.3-r2.apk" \
-    "luci-i18n-bandix-plus-zh-cn-26.294.39283.c4f002f_all.apk|luci-i18n-bandix-plus-zh-cn-26.294.39283~c4f002f.apk"
+    'bandix-plus-0.1.3-r1_x86_64.apk|bandix-plus-0.1.3-r1.apk' \
+    'luci-app-bandix-plus-0.1.3-r2_all.apk|luci-app-bandix-plus-0.1.3-r2.apk' \
+    'luci-i18n-bandix-plus-zh-cn-26.294.39283.c4f002f_all.apk|luci-i18n-bandix-plus-zh-cn-26.294.39283~c4f002f.apk' \
+    'luci-i18n-wechatpush-zh-cn-26.062.45206.f0af3d3.apk|luci-i18n-wechatpush-zh-cn-26.062.45206~f0af3d3.apk'
   do
-    old="${mapping%%|*}"
-    new="${mapping#*|}"
-    test -f "$IB/packages/$old" || { echo "缺少已校验的第三方 APK：$old" >&2; exit 1; }
-    test ! -e "$IB/packages/$new" || { echo "目标文件已存在，拒绝覆盖：$new" >&2; exit 1; }
-    mv -- "$IB/packages/$old" "$IB/packages/$new"
-    echo "APK3 本地索引命名兼容：$new"
+    old="${mapping%%|*}"; new="${mapping#*|}"
+    test -s "$IB/packages/$old" || { echo "缺少原始 APK：$old" >&2; exit 1; }
+    test ! -e "$IB/packages/$new" || { echo "目标 APK 已存在：$new" >&2; exit 1; }
+    mv "$IB/packages/$old" "$IB/packages/$new"
   done
+
+  bash "$ROOT/scripts/build-sdk-packages.sh" "$IB/packages"
+
+  # 将 Mihomo 稳定版直接放入 OpenClash 要求的 core/clash_meta，启动不依赖二次下载。
+  CORE="$WORK/mihomo-linux-amd64-v1.19.33.gz"
+  curl -fL --retry 3 -o "$CORE" \
+    https://github.com/MetaCubeX/mihomo/releases/download/v1.19.33/mihomo-linux-amd64-v1.19.33.gz
+  printf '%s  %s\n' 132f6f3edf9a65e62f04853aed3358472e0b2b7666daa8419edfa2ddf5bb6323 "$CORE" | sha256sum -c -
+  mkdir -p "$IB/files/etc/openclash/core" "$IB/files/usr/sbin"
+  gzip -dc "$CORE" > "$IB/files/etc/openclash/core/clash_meta"
+  chmod 0755 "$IB/files/etc/openclash/core/clash_meta"
+  cp "$ROOT/scripts/expand-hyperv-root-safe.sh" "$IB/files/usr/sbin/expand-hyperv-root-safe"
+  chmod 0755 "$IB/files/usr/sbin/expand-hyperv-root-safe"
 fi
 
 PACKAGES="$(sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "$ROOT/config/gateway/base.packages" | tr '\n' ' ')"
-DISABLED_SERVICES=""
-if [ "$PROFILE" = "lab" ]; then
+DISABLED=''
+if [ "$PROFILE" = lab ]; then
   PACKAGES="$PACKAGES $(sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "$ROOT/config/gateway/lab.packages" | tr '\n' ' ')"
-  # 实验插件默认不启动。未通过实机兼容测试前，不允许接管真实流量。
-  DISABLED_SERVICES="openclash qosify banip bandix-plus"
+  DISABLED='openclash qosmate qosify banip bandix-plus internet-detector wechatpush'
 fi
 
 cd "$IB"
-echo "构建 profile=$PROFILE，target=x86/64，BIOS Legacy；不写入凭据/真实网络配置"
-make image PROFILE="generic" PACKAGES="$PACKAGES" ROOTFS_PARTSIZE="2048" DISABLED_SERVICES="$DISABLED_SERVICES"
-
+echo "构建 $PROFILE: x86/64, rootfs=$ROOTFS_MIB MiB, Hyper-V=$HYPERV_DISK_GIB GiB"
+make image PROFILE=generic PACKAGES="$PACKAGES" ROOTFS_PARTSIZE="$ROOTFS_MIB" \
+  FILES="$IB/files" DISABLED_SERVICES="$DISABLED"
 SOURCE="$IB/bin/targets/x86/64"
 test -d "$SOURCE"
-find "$SOURCE" -maxdepth 1 -type f -name '*.img.gz' -exec cp -v {} "$ROOT/out/$PROFILE/" \;
-test "$(find "$ROOT/out/$PROFILE" -name '*.img.gz' | wc -l)" -gt 0 || {
-  echo "没有找到镜像产物，终止" >&2; exit 1;
-}
+find "$SOURCE" -maxdepth 1 -type f -name '*.img.gz' -exec cp -v '{}' "$ROOT/out/$PROFILE/" \;
+find "$SOURCE" -maxdepth 1 -type f -name '*.manifest' -exec cp -v '{}' "$ROOT/out/$PROFILE/" \;
+test -s "$SOURCE/openwrt-$VERSION-x86-64-generic-ext4-combined.img.gz"
+test -s "$SOURCE/openwrt-$VERSION-x86-64-generic-ext4-combined-efi.img.gz"
+
+# 基于官方 ext4-combined BIOS/EFI 分别转换 Hyper-V Gen1/Gen2 动态 VHDX。
+for gen in gen1 gen2; do
+  if [ "$gen" = gen1 ]; then input='ext4-combined.img.gz'; else input='ext4-combined-efi.img.gz'; fi
+  in="$SOURCE/openwrt-$VERSION-x86-64-generic-$input"
+  raw="$WORK/openwrt-$gen.raw"
+  gzip -dc "$in" > "$raw"
+  out="$ROOT/out/$PROFILE/openwrt-$VERSION-$PROFILE-hyperv-$gen-ext4.vhdx"
+  qemu-img convert -f raw -O vhdx -o subformat=dynamic "$raw" "$out"
+  qemu-img resize -f vhdx "$out" "${HYPERV_DISK_GIB}G"
+  qemu-img check -f vhdx "$out"
+  qemu-img info -f vhdx "$out" > "$out.info.txt"
+  rm -f "$raw"
+done
+
 printf '%s\n' "$PACKAGES" > "$ROOT/out/$PROFILE/requested-packages.txt"
 cat > "$ROOT/out/$PROFILE/build-info.txt" <<EOF
 OpenWrt: $VERSION
-Target: x86/64 generic
-Boot: BIOS/Legacy (use generic-*-combined.img.gz, not -efi)
-Profile: $PROFILE
-Rootfs partition size: 2048 MiB
-Sources: official downloads.openwrt.org; pinned GitHub release assets for lab
-Autoflash: disabled
-Secrets embedded: none
-Validation: ImageBuilder succeeded; no physical router tests performed
+Architecture: x86_64; profile: $PROFILE
+Real hardware: Intel I225-V via kmod-igc; SATA via AHCI
+Hyper-V driver: built-in CONFIG_HYPERV_NET/CONFIG_HYPERV_STORAGE
+Physical images: BIOS/UEFI, ext4/squashfs
+Hyper-V images: Gen1(BIOS)/Gen2(UEFI), ext4 dynamic VHDX
+Gen2 requires Secure Boot disabled
+Root filesystem partition: $ROOTFS_MIB MiB
+Virtual disk size: $HYPERV_DISK_GIB GiB
+Unallocated capacity: safe grow helper included in lab, NOT enabled automatically
+Auto-flash / secrets: none
+Verification: build-only; real device/VM/network functionality remains untested
 EOF
 (
   cd "$ROOT/out/$PROFILE"
-  sha256sum ./*.img.gz > SHA256SUMS
+  sha256sum ./*.img.gz ./*.vhdx > SHA256SUMS
 )
-echo "完成：$ROOT/out/$PROFILE"
+echo "构建完成：$ROOT/out/$PROFILE"
