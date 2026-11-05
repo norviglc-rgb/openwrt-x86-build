@@ -1,31 +1,22 @@
-# J4125 网关实机验收清单
+# 物理机和 Hyper-V 验收清单
 
-> 勘察来源：2026-11-05 四份报告。当前是 Legacy BIOS / ext4 / 四口 I225-V / PPPoE；sda4 数据区不可直接覆盖。
+## 构建
+- [ ] base/lab 两组工作流全部 success；生成 BIOS、UEFI 的 ext4/SquashFS combined 及 Gen1/Gen2 动态 VHDX。
+- [ ] 官方 OpenWrt ImageBuilder/SDK SHA-256 校验通过。
+- [ ] lab 的 APK 清单具有 QoSmate 后端+LuCI、qosify、OpenClash、Mihomo、Argon、banIP、Bandix Plus 前后端、nlbwmon、collectd、Internet Detector 前后端、微信推送+中文包。
+- [ ] qemu-img check/info 通过，Hyper-V VHDX 容量 16 GiB，rootfs 初始 2048 MiB。
 
-## 0. 不得提前执行
+## Hyper-V
+- [ ] Gen1 使用 BIOS VHDX 引导成功。
+- [ ] Gen2 使用 UEFI VHDX 并关闭 Secure Boot 引导成功。
+- [ ] Hyper-V 网络/存储驱动可用，LuCI、SSH、DHCP、DNS、IPv4/IPv6 可用；不要直接套用物理 eth0-eth3。
+- [ ] 在新测试盘上执行两阶段安全扩容；附加第三个分区后必须拒绝扩容，原盘数据保持不变。
 
-- 禁止自动刷写生产入口；不得把含密钥的 sysupgrade 备份提交到 GitHub。
-- 下载镜像后，校验 SHA256SUMS。测试时先用独立磁盘或经过验证的恢复介质。
-- 实验镜像包含多个可能修改 nftables / tc / eBPF 的组件，未经确认不得全体启用。
-
-## 1. base 实机基线
-
-- BIOS 镜像实际可启动；igc 正确识别 eth0、eth1、eth2、eth3。
-- PPPoE、IPv4、WAN6、DHCPv6 前缀委派、RA、ICMPv6、IPv6 防火墙正常。
-- DNS / DHCP、中文 LuCI、SSH 公钥、WireGuard 具备功能；管理接口不暴露 WAN。
-- 验证 eth2 PCIe 实际吞吐上限，不以 2.5GbE 协商速率代替实际测试。
-- 断开 fnOS/Agent 后，基础网络能持续提供服务。
-
-## 2. lab 功能
-
-- 先启用 OpenClash，确认配置 UCI 路径与真实 -f 文件一致，节点订阅、Fake-IP、规则、DNS、IPv6 不绕行。
-- banIP 更新允许列表、防火墙默认拒绝、隔离网络不能访问 9090 / LuCI / SSH。
-- QoS：一次只测试 QoSmate **或** qosify，测满速吞吐、上下行排队延迟、DSCP 与 CPU 消耗。
-- Bandix Plus、nlbwmon、collectd：对比总流量、代理流量、IPv6、内网流量与 CPU 消耗；Bandix 限速关闭。
-- 故意注入错误配置，验证离线备份与管理口能够恢复。
-
-## 3. 生产准入
-
-- 所有关键业务已验证；错误配置有明确回退路径。
-- GitHub Artifacts 只标记为实验固件，不自动创建 Release。
-- 尚未覆盖的 QoSmate SDK 构建、通知与新监控工具必须先通过独立依赖检查。
+## J4125 实机
+- [ ] I225-V 四口均识别；PPPoE 拨号、DHCPv6/RA、WireGuard、DNS/防火墙正常。
+- [ ] OpenClash 内核、规则细分、节点订阅、IPv6 与 DNS 分流无绕行。
+- [ ] QoSmate 与 qosify 分别测吞吐/拥塞延迟/DSCP；同一时间只能启用一个。
+- [ ] Bandix Plus 不开限速，比较 nlbwmon 与 collectd 的统计、CPU。
+- [ ] Internet Detector 不开启自动重启；微信推送只在本机填写密钥。
+- [ ] 网络故障可通过本地/独立管理链路恢复。
+- [ ] 保留原 SSD sda4 数据分区完整性并完成回滚演练后，才考虑生产部署。
