@@ -42,6 +42,23 @@ if [ "$PROFILE" = "lab" ]; then
       echo "校验失败: $name" >&2; exit 1;
     }
   done < "$ROOT/config/gateway/vendor.lock"
+
+  # OpenWrt 25.12 APK3 ImageBuilder 会按包元数据的「包名-版本.apk」
+  # 定位本地文件。Bandix 上游资产包含 _架构 后缀，版本中也有 . / ~ 差异。
+  # 2026-11-05 构建 #23 实际报错：索引发现包，却找不到这些 APK 文件。
+  # 下载后已先校验上游原文件 SHA-256，下面只改本地副本文件名，不改包内容。
+  for mapping in \
+    "bandix-plus-0.1.3-r1_x86_64.apk|bandix-plus-0.1.3-r1.apk" \
+    "luci-app-bandix-plus-0.1.3-r2_all.apk|luci-app-bandix-plus-0.1.3-r2.apk" \
+    "luci-i18n-bandix-plus-zh-cn-26.294.39283.c4f002f_all.apk|luci-i18n-bandix-plus-zh-cn-26.294.39283~c4f002f.apk"
+  do
+    old="${mapping%%|*}"
+    new="${mapping#*|}"
+    test -f "$IB/packages/$old" || { echo "缺少已校验的第三方 APK：$old" >&2; exit 1; }
+    test ! -e "$IB/packages/$new" || { echo "目标文件已存在，拒绝覆盖：$new" >&2; exit 1; }
+    mv -- "$IB/packages/$old" "$IB/packages/$new"
+    echo "APK3 本地索引命名兼容：$new"
+  done
 fi
 
 PACKAGES="$(sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "$ROOT/config/gateway/base.packages" | tr '\n' ' ')"
