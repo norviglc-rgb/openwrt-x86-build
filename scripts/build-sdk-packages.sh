@@ -61,6 +61,15 @@ CONFIG_PACKAGE_internet-detector=m
 CONFIG_PACKAGE_luci-app-internet-detector=m
 EOF
 make defconfig
+# LuCI SDK 需要 libjson-c 的开发头文件。ImageBuilder 的运行时 APK
+# 不会向 SDK staging_dir 提供头文件；必须先构建官方 json-c 开发依赖。
+# 2026-11-05 CI #41981985431 失败于 json-c/json.h 缺失，修复根因。
+echo "SDK 准备 libjson-c 开发头文件"
+make -j2 package/libs/libjson-c/compile V=s
+test -s staging_dir/target-x86_64_musl/usr/include/json-c/json.h || {
+  echo "SDK 尚未安装 libjson-c 开发头文件，停止而不继续盲目编译" >&2
+  exit 1
+}
 for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detector; do
   echo "SDK 编译 $name"
   make -j2 "package/$name/compile" V=s 2>&1 | tee "$WORK/build-$name.log" || {\n    grep -E '(^| )error:|^make.*\\*\\*\\*|^.*fatal error:' "$WORK/build-$name.log" | tail -30 >&2 || true\n    exit 1\n  }
