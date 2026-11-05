@@ -15,11 +15,11 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: openwrt-${ github.ref }}
+  group: openwrt-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   build:
-    name: "${ matrix.profile }} · 物理机 + Hyper-V Gen1/Gen2"
+    name: "${{ matrix.profile }} · 物理机 + Hyper-V Gen1/Gen2"
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
@@ -50,12 +50,12 @@ jobs:
         env:
           ROOTFS_MIB: "2048"
           HYPERV_DISK_GIB: "16"
-        run: bash scripts/build-image.sh "${ matrix.profile }}"
+        run: bash scripts/build-image.sh "${{ matrix.profile }}"
       - name: 上传镜像和校验文件（未验证，仅实验）
         if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: openwrt-25.12.6-${ matrix.profile }}-physical-hyperv-${ github.run_number }}
-          path: out/${ matrix.profile }}/
+          name: openwrt-25.12.6-${{ matrix.profile }}-physical-hyperv-${{ github.run_number }}
+          path: out/${{ matrix.profile }}/
           if-no-files-found: error
           retention-days: 14
