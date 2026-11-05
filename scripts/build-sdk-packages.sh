@@ -44,11 +44,18 @@ cp -a "$WORK/source/luci-app-qosmate/." package/luci-app-qosmate/
 cp -a "$WORK/source/internet-detector/internet-detector/." package/internet-detector/
 cp -a "$WORK/source/internet-detector/luci-app-internet-detector/." package/luci-app-internet-detector/
 
+# 中文优先：QoSmate 上游自带 zh_Hans；Internet Detector 使用本仓库逐条翻译的 227 条文案。
+test -s package/luci-app-qosmate/po/zh_Hans/qosmate.po || { echo "QoSmate 中文翻译缺失" >&2; exit 1; }
+mkdir -p package/luci-app-internet-detector/po/zh_Hans
+cp "$ROOT/assets/i18n/internet-detector.zh_Hans.po" package/luci-app-internet-detector/po/zh_Hans/internet-detector.po
+
 cat >> .config <<'EOF'
 CONFIG_PACKAGE_qosmate=m
 CONFIG_PACKAGE_luci-app-qosmate=m
 CONFIG_PACKAGE_internet-detector=m
 CONFIG_PACKAGE_luci-app-internet-detector=m
+CONFIG_PACKAGE_luci-i18n-qosmate-zh-cn=m
+CONFIG_PACKAGE_luci-i18n-internet-detector-zh-cn=m
 EOF
 make defconfig
 for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detector; do
@@ -67,7 +74,16 @@ for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detecto
   cp -v "$path" "$OUT/$file.apk"
 done
 
-# 如果项目生成了简体中文包，则一起复制；最终必须在 ImageBuilder 中校验。
-find "$SDK/bin" -type f -name 'luci-i18n-qosmate-zh-cn*.apk' -exec cp -v '{}' "$OUT/" \;
+# 中文语言包为硬性验收项：未成功生成时直接失败，不静默省略。
+for lang in luci-i18n-qosmate-zh-cn luci-i18n-internet-detector-zh-cn; do
+  mapfile -t translations < <(find "$SDK/bin" -type f -name "$lang-*.apk")
+  (("${#translations[@]}" == 1)) || { echo "中文语言包缺失或重复：$lang" >&2; exit 1; }
+  source_file="${translations[0]}"
+  filename="$(basename "$source_file")"
+  filename="${filename%.apk}"
+  filename="${filename%_all}"
+  filename="${filename%_x86_64}"
+  cp -v "$source_file" "$OUT/$filename.apk"
+done
 echo "SDK 编译完毕："
 find "$OUT" -maxdepth 1 -type f -name '*.apk' -printf '%f\n' | sort
