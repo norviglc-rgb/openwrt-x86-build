@@ -91,8 +91,9 @@ for gen in gen1 gen2; do
   raw="$WORK/openwrt-$gen.raw"
   gzip -dc "$in" > "$raw"
   out="$ROOT/out/$PROFILE/openwrt-$VERSION-$PROFILE-hyperv-$gen-ext4.vhdx"
+  # QEMU VHDX 驱动不支持 resize。先稀疏扩展 RAW，再转换动态 VHDX。
+  truncate -s "${HYPERV_DISK_GIB}G" "$raw"
   qemu-img convert -f raw -O vhdx -o subformat=dynamic "$raw" "$out"
-  qemu-img resize -f vhdx "$out" "${HYPERV_DISK_GIB}G"
   qemu-img check -f vhdx "$out"
   qemu-img info -f vhdx "$out" > "$out.info.txt"
   rm -f "$raw"
