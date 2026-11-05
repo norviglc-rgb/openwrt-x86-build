@@ -17,6 +17,7 @@ luci-app-banip
 # QoS：QoSmate 和 qosify 必须分别启用
 qosmate
 luci-app-qosmate
+luci-i18n-qosmate-zh-cn
 qosify
 # 轻量指标与增强流量监控
 nlbwmon
@@ -37,6 +38,7 @@ luci-i18n-bandix-plus-zh-cn
 # 断网检测和通知（不设定令牌，也不启用自动重启）
 internet-detector
 luci-app-internet-detector
+luci-i18n-internet-detector-zh-cn
 luci-app-wechatpush
 luci-i18n-wechatpush-zh-cn
 # Hyper-V 手动安全根分区扩容工具
