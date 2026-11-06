@@ -38,12 +38,56 @@ cd "$SDK"
 # 不能 install -a：会激活整个 LuCI + packages 生态，触发 weechat
 # 递归依赖及无关内核模块的编译（2026-11-05 CI #30 亲测）。
 ./scripts/feeds update luci packages
-./scripts/feeds install -p packages lua luaposix || {
+# lua 5.1 属于 OpenWrt 核心 package/utils/lua，不在 packages feed 的
+# lang/lua/* 子包中。上次 CI #44 仅装 feed 定义，编译 luci-lib-jsonc
+# 时缺少 lua.h。使用匹配 25.12.6 的官方 Makefile 和全部官方补丁。
+./scripts/feeds install -p packages luaposix || {
   echo "核心 Lua 定义无法安装到 SDK" >&2; exit 1;
 }
 ./scripts/feeds install -p luci luci-base luci-lib-jsonc || {
   echo "核心 LuCI 定义无法安装到 SDK" >&2; exit 1;
 }
+# 仅复制官方 25.12.6 对应提交的 Lua 构建定义与补丁，不引入其他软件包。
+OPENWRT_COMMIT=64900e756efa667774214f9c6b17c113222e01f7
+LUA_SOURCE_URL="https://raw.githubusercontent.com/openwrt/openwrt/$OPENWRT_COMMIT/package/utils/lua"
+mkdir -p package/utils/lua/patches package/utils/lua/patches-host
+curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+  -o package/utils/lua/Makefile "$LUA_SOURCE_URL/Makefile"
+grep -Fqx 'PKG_HASH:=2640fc56a795f29d28ef15e13c34a47e223960b0240e8cb0a82d9b0738695333' \
+  package/utils/lua/Makefile || { echo '官方 Lua 5.1 源码哈希校验未匹配' >&2; exit 1; }
+for patch in \
+  001-include-version-number.patch \
+  010-lua-5.1.3-lnum-full-260308.patch \
+  011-lnum-use-double.patch \
+  012-lnum-fix-ltle-relational-operators.patch \
+  013-lnum-strtoul-parsing-fixes.patch \
+  015-lnum-ppc-compat.patch \
+  020-shared_liblua.patch \
+  030-archindependent-bytecode.patch \
+  040-use-symbolic-functions.patch \
+  050-honor-cflags.patch \
+  100-no_readline.patch \
+  200-lua-path.patch \
+  300-opcode_performance.patch \
+  400-CVE-2014-5461.patch
+do
+  curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+    -o "package/utils/lua/patches/$patch" "$LUA_SOURCE_URL/patches/$patch"
+done
+for patch in \
+  001-include-version-number.patch \
+  010-lua-5.1.3-lnum-full-260308.patch \
+  011-lnum-use-double.patch \
+  012-lnum-fix-ltle-relational-operators.patch \
+  013-lnum-strtoul-parsing-fixes.patch \
+  015-lnum-ppc-compat.patch \
+  030-archindependent-bytecode.patch \
+  100-no_readline.patch \
+  400-CVE-2014-5461.patch
+do
+  curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+    -o "package/utils/lua/patches-host/$patch" "$LUA_SOURCE_URL/patches-host/$patch"
+done
 # 只选构建目标；关闭 SDK 的「所有包 / 所有内核模块」模式。
 # ImageBuilder 随后会从 OpenWrt 官方软件源解析完整运行时依赖。
 # 官方预编译 SDK 可能不自带 .config。先创建初始文件，随后 make defconfig。
@@ -61,6 +105,8 @@ mkdir -p package/luci-app-internet-detector/po/zh_Hans
 cp "$ROOT/assets/i18n/internet-detector.zh_Hans.po" package/luci-app-internet-detector/po/zh_Hans/internet-detector.po
 
 cat >> .config <<'EOF'
+CONFIG_PACKAGE_liblua=m
+CONFIG_PACKAGE_lua=m
 CONFIG_PACKAGE_qosmate=m
 CONFIG_PACKAGE_luci-app-qosmate=m
 CONFIG_PACKAGE_internet-detector=m
@@ -86,40 +132,13 @@ sed -i '/^$(eval $(call BuildPackage,libjson-c))/i CMAKE_OPTIONS += -DBUILD_APPS
 grep -Fq -- '-DBUILD_APPS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5' package/libs/libjson-c/Makefile
 make defconfig
 
-# LuCI SDK 需要 libjson-c 的开发头文件。ImageBuilder 的运行时 APK
-# 不会向 SDK staging_dir 提供头文件；必须先构建官方 json-c 开发依赖。
-# 2026-11-05 CI #41981985431 失败于 json-c/json.h 缺失，修复根因。
-echo "SDK 准备 libjson-c 开发头文件"
-make -j2 package/libs/libjson-c/compile V=s
-test -s staging_dir/target-x86_64_musl/usr/include/json-c/json.h || {
-  echo "SDK 尚未安装 libjson-c 开发头文件，停止而不继续盲目编译" >&2
+# Lua SDK 开发文件须先进入 staging_dir，运行时 .apk 包不能代替头文件。
+echo "SDK 准备官方 Lua 5.1 开发头文件"
+make -j2 package/utils/lua/compile V=s
+test -s staging_dir/target-x86_64_musl/usr/include/lua.h || {
+  echo "SDK 缺少 lua.h，阻止进入 LuCI 构建" >&2
   exit 1
 }
-for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detector; do
-  echo "SDK 编译 $name"
-  make -j2 "package/$name/compile" V=s 2>&1 | tee "$WORK/build-$name.log" || {
-    grep -E '(^| )error:|^make.*\*\*\*|^.*fatal error:' "$WORK/build-$name.log" | tail -30 >&2 || true
-    exit 1
-  }
-done
-
-for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detector; do
-  mapfile -t found < <(find "$SDK/bin" -type f \( -name "$name-*.apk" -o -name "${name}_*.apk" \))
-  (("${#found[@]}" == 1)) || { printf '无法唯一确认 %s 产物: %s\n' "$name" "${found[*]}" >&2; exit 1; }
-  path="${found[0]}"
-  file="$(basename "$path")"
-  file="${file%.apk}"
-  file="${file%_x86_64}"
-  file="${file%_all}"
-  cp -v "$path" "$OUT/$file.apk"
-done
-
-# 如果项目生成了简体中文包，则一起复制；最终必须在 ImageBuilder 中校验。
-find "$SDK/bin" -type f \( -name 'luci-i18n-qosmate-zh-cn*.apk' -o -name 'luci-i18n-internet-detector-zh-cn*.apk' \) -exec cp -v '{}' "$OUT/" \;
-echo "SDK 编译完毕："
-find "$OUT" -maxdepth 1 -type f -name '*.apk' -printf '%f\n' | sort
- package/libs/libjson-c/Makefile
-make defconfig
 
 # LuCI SDK 需要 libjson-c 的开发头文件。ImageBuilder 的运行时 APK
 # 不会向 SDK staging_dir 提供头文件；必须先构建官方 json-c 开发依赖。
@@ -130,6 +149,9 @@ test -s staging_dir/target-x86_64_musl/usr/include/json-c/json.h || {
   echo "SDK 尚未安装 libjson-c 开发头文件，停止而不继续盲目编译" >&2
   exit 1
 }
+echo "SDK 开发依赖准备完成：lua.h + json-c/json.h"
+# 先编译 LuCI 绑定，避免顶层 luci-app-qosmate 构建晚期才发现缺头文件。
+make -j2 package/feeds/luci/luci-lib-jsonc/compile V=s
 for name in qosmate luci-app-qosmate internet-detector luci-app-internet-detector; do
   echo "SDK 编译 $name"
   make -j2 "package/$name/compile" V=s 2>&1 | tee "$WORK/build-$name.log" || {
