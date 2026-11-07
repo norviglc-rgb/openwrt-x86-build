@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""离线校验 OpenWrt 实际输出（静态检查，不声称实机/Hyper-V 已成功引导）。"""
+"""静态验证唯一的 lab UEFI/ext4 镜像；不代表实机已成功启动。"""
 import gzip
 import hashlib
 import json
@@ -163,75 +163,43 @@ def validate_image(path, kind, efi, root_mib):
 
 
 def main():
-    require(len(sys.argv) == 2, "用法：verify-artifacts.py out/base|out/lab")
+    require(len(sys.argv) == 2, "用法：verify-artifacts.py out/lab")
     output = Path(sys.argv[1])
-    profile = output.name
-    require(profile in ("base", "lab") and output.is_dir(), "构建输出路径错误")
+    require(output.name == "lab" and output.is_dir(), "只允许 lab 输出目录")
     info = (output / "build-info.txt").read_text(encoding="utf-8")
-    root_match = re.search(r"Root filesystem partition:\s*(\d+)\s*MiB", info)
-    disk_match = re.search(r"Virtual disk size:\s*(\d+)\s*GiB", info)
-    require(root_match and disk_match, "build-info 缺少分区或磁盘容量")
+    root_match = re.search(r"Root filesystem partition:\\s*(\\d+)\\s*MiB", info)
+    require(root_match, "build-info 缺少根分区大小")
     root_mib = int(root_match.group(1))
-    disk_gib = int(disk_match.group(1))
-    expected = set()
-    physical = []
-    for kind in ("ext4", "squashfs"):
-        for suffix, efi in (("combined", False), ("combined-efi", True)):
-            name = f"openwrt-{VERSION}-x86-64-generic-{kind}-{suffix}.img.gz"
-            physical.append((output / name, kind, efi))
-            expected.add(name)
-        expected.add(f"openwrt-{VERSION}-x86-64-generic-{kind}-rootfs.img.gz")
-    vhdxs = []
-    for gen in ("gen1", "gen2"):
-        name = f"openwrt-{VERSION}-{profile}-hyperv-{gen}-ext4.vhdx"
-        expected.add(name)
-        vhdxs.append(output / name)
+    name = f"openwrt-{VERSION}-x86-64-generic-ext4-combined-efi.img.gz"
+    image = output / name
+    require(image.is_file() and image.stat().st_size > 0, "未找到 UEFI/ext4 固件")
+    require({p.name for p in output.glob("*.img.gz")} == {name},
+            "存在多余的非 UEFI/ext4 镜像")
+    require(not list(output.glob("*.vhdx")), "不应包含 Hyper-V VHDX")
+
     lines = (output / "SHA256SUMS").read_text(encoding="utf-8").splitlines()
-    checksums = {}
-    for line in lines:
-        digest, name = line.split()
-        name = name.removeprefix("./")
-        require(re.fullmatch("[a-f0-9]{64}", digest), "SHA256SUMS 格式错误")
-        require(name not in checksums, "SHA256SUMS 存在重复文件")
-        checksums[name] = digest
-    require(set(checksums) == expected,
-            f"SHA256SUMS 文件不匹配：缺少 {expected - set(checksums)}，多出 {set(checksums) - expected}")
-    for name in sorted(expected):
-        path = output / name
-        require(path.is_file() and path.stat().st_size > 0, f"缺少产物: {name}")
-        require(sha256(path) == checksums[name], f"SHA-256 不匹配：{name}")
-    print(f"OK {profile}: 8 个镜像/VHDX 的 SHA-256 全部吻合")
-    for path, kind, efi in physical:
-        validate_image(path, kind, efi, root_mib)
-    for kind in ("ext4", "squashfs"):
-        name = f"openwrt-{VERSION}-x86-64-generic-{kind}-rootfs.img.gz"
-        data, _ = unzip_gzip_header_and_verify(output / name)
-        if kind == "ext4":
-            check_ext4(data, 0, name)
-        else:
-            require(data[:4] == b"hsqs", f"{name}: 文件系统魔数错误")
-        print(f"  OK {name}: gzip 流完整，文件系统魔数正确")
-    for path in vhdxs:
-        result = subprocess.run(["qemu-img", "info", "-f", "vhdx", "--output=json", str(path)],
-                                check=True, capture_output=True, text=True)
-        details = json.loads(result.stdout)
-        require(details["format"] == "vhdx" and details["virtual-size"] == disk_gib * (1024 ** 3),
-                f"{path.name}: VHDX 类型或虚拟容量错误")
-        subprocess.run(["qemu-img", "check", "-f", "vhdx", str(path)], check=True,
-                       capture_output=True, text=True)
-        print(f"  OK {path.name}: VHDX 格式、容量、结构检查通过")
+    require(len(lines) == 1, "SHA256SUMS 只能包含一个镜像")
+    tokens = lines[0].split()
+    require(len(tokens) == 2, "SHA256SUMS 格式错误")
+    digest, name_in_hash = tokens
+    require(re.fullmatch(r"[a-f0-9]{64}", digest), "SHA256 格式错误")
+    require(name_in_hash.removeprefix("./") == name, "校验文件名不匹配")
+    require(sha256(image) == digest, "SHA256 校验失败")
+    validate_image(image, "ext4", True, root_mib)
+
     manifests = list(output.glob("*.manifest"))
-    require(len(manifests) == 1, "缺少或存在多个包清单")
+    require(len(manifests) == 1, "软件包 manifest 必须恰好一份")
     packages = {line.split(" - ", 1)[0] for line in manifests[0].read_text().splitlines()}
-    must = {"kmod-igc", "kmod-ata-ahci", "kmod-fs-ext4", "parted",
-            "resize2fs", "lsblk", "blkid", "luci-i18n-base-zh-cn"}
-    if profile == "lab":
-        must |= {"luci-app-openclash", "luci-theme-argon", "qosmate", "qosify",
-                 "banip", "bandix-plus", "internet-detector", "luci-app-wechatpush",
-                 "luci-i18n-internet-detector-zh-cn"}
-    require(not (must - packages), f"manifest 缺少软件包: {sorted(must - packages)}")
+    must = {
+        "kmod-igc", "kmod-ata-ahci", "kmod-fs-ext4", "luci-i18n-base-zh-cn",
+        "luci-app-openclash", "luci-theme-argon", "qosmate", "qosify",
+        "banip", "bandix-plus", "internet-detector", "luci-app-wechatpush",
+        "luci-i18n-internet-detector-zh-cn",
+    }
+    require(not (must - packages), f"manifest 缺少包: {sorted(must - packages)}")
     require((output / "requested-packages.txt").is_file(), "缺少 requested-packages.txt")
-    print("OK 包清单检查通过；静态校验完成。BIOS/UEFI 实际引导和网络功能仍需虚拟机/实机测试。")
+    print("OK lab EFI/ext4: SHA256、GPT/UEFI、ext4、包清单验证通过")
+    print("注意：实际引导、网络功能、磁盘保护仍需实机测试。")
 
 
 if __name__ == "__main__":

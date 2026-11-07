@@ -1,18 +1,15 @@
 #!/usr/bin/env bash
-# 官方 25.12.6 ImageBuilder + 25.12.6 SDK 包 + Hyper-V Gen1/Gen2 VHDX
+# 官方 25.12.6 ImageBuilder + 25.12.6 SDK 包，唯一 lab ext4 UEFI 镜像
 set -Eeuo pipefail
 PROFILE="${1:-lab}"
-case "$PROFILE" in base|lab) ;; *) echo "不支持 profile: $PROFILE" >&2; exit 2;; esac
+case "$PROFILE" in lab) ;; *) echo "仅支持 lab ext4 UEFI: $PROFILE" >&2; exit 2;; esac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION=25.12.6
 URL="https://downloads.openwrt.org/releases/$VERSION/targets/x86/64"
 ARCHIVE="openwrt-imagebuilder-$VERSION-x86-64.Linux-x86_64.tar.zst"
 HASH=a792e29bd2233cda67a0823030bfb53c0b61fbb3836b2063e88adf89730d563b
 ROOTFS_MIB="${ROOTFS_MIB:-2048}"
-HYPERV_DISK_GIB="${HYPERV_DISK_GIB:-16}"
 [[ "$ROOTFS_MIB" =~ ^[0-9]+$ ]] && (( ROOTFS_MIB>=512 && ROOTFS_MIB<=8192 )) || { echo 'ROOTFS_MIB 范围为 512-8192 MiB' >&2; exit 2; }
-[[ "$HYPERV_DISK_GIB" =~ ^[0-9]+$ ]] && (( HYPERV_DISK_GIB>=8 && HYPERV_DISK_GIB<=64 )) || { echo 'HYPERV_DISK_GIB 范围为 8-64 GiB' >&2; exit 2; }
-(( HYPERV_DISK_GIB*1024 > ROOTFS_MIB+64 )) || { echo 'Hyper-V 磁盘必须大于根分区' >&2; exit 2; }
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$ROOT/out/$PROFILE"
@@ -81,24 +78,6 @@ if [ "$PROFILE" = lab ]; then
   chmod 0755 "$IB/files/etc/openclash/core/clash_meta"
 fi
 
-# 所有 x86 测试镜像内置 Hyper-V 安全扩容工具。启动脚本会自动检测 DMI，
-# 非 Microsoft Corporation 虚拟机立即退出，不触碰物理机的任何分区。
-mkdir -p "$IB/files/usr/sbin" "$IB/files/etc/init.d" "$IB/files/etc/rc.d"
-cp "$ROOT/scripts/expand-hyperv-root-safe.sh" "$IB/files/usr/sbin/expand-hyperv-root-safe"
-chmod 0755 "$IB/files/usr/sbin/expand-hyperv-root-safe"
-cat > "$IB/files/etc/init.d/hyperv-autogrow" <<'INIT'
-#!/bin/sh /etc/rc.common
-# 仅对 Hyper-V 两分区 ext4 根磁盘自动扩容；现网物理机不改变分区。
-START=97
-start() {
-  [ -f /sys/class/dmi/id/sys_vendor ] || return 0
-  [ "$(cat /sys/class/dmi/id/sys_vendor)" = "Microsoft Corporation" ] || return 0
-  /usr/sbin/expand-hyperv-root-safe --auto >> /tmp/hyperv-autogrow.log 2>&1
-}
-INIT
-chmod 0755 "$IB/files/etc/init.d/hyperv-autogrow"
-ln -s ../init.d/hyperv-autogrow "$IB/files/etc/rc.d/S97hyperv-autogrow"
-
 PACKAGES="$(sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "$ROOT/config/gateway/base.packages" | tr '\n' ' ')"
 DISABLED=''
 if [ "$PROFILE" = lab ]; then
@@ -107,73 +86,44 @@ if [ "$PROFILE" = lab ]; then
 fi
 
 cd "$IB"
-echo "构建 $PROFILE: x86/64, rootfs=$ROOTFS_MIB MiB, Hyper-V=$HYPERV_DISK_GIB GiB"
+echo "构建 $PROFILE: x86/64, UEFI/ext4, rootfs=$ROOTFS_MIB MiB"
+# 只编译 ext4 根文件系统和 EFI 引导组合，不选择 BIOS 与 squashfs。
 make image PROFILE=generic PACKAGES="$PACKAGES" ROOTFS_PARTSIZE="$ROOTFS_MIB" \
+  ROOTFS_FILESYSTEM=ext4 CONFIG_GRUB_IMAGES=n CONFIG_GRUB_EFI_IMAGES=y \
   FILES="$IB/files" DISABLED_SERVICES="$DISABLED"
 SOURCE="$IB/bin/targets/x86/64"
 test -d "$SOURCE"
 
-# OpenWrt x86 combined-efi 历史上只保留主 GPT；这里补全并移动备份 GPT 到镜像真实末尾。
-# 这样实体机镜像与后续 VHDX 都拥有完整的主/备 GPT，而不是仅“可启动但 GPT 不规范”。
-repair_efi_gpt() {
-  local kind="$1"
-  local gz="$SOURCE/openwrt-$VERSION-x86-64-generic-$kind-combined-efi.img.gz"
-  local raw="$WORK/$PROFILE-$kind-combined-efi.raw"
-  test -s "$gz"
-  gzip -dc "$gz" > "$raw"
-  sgdisk -e "$raw" >/dev/null
-  sgdisk -v "$raw"
-  gzip -n -9 < "$raw" > "$gz.tmp"
-  mv "$gz.tmp" "$gz"
-  rm -f "$raw"
-}
-repair_efi_gpt ext4
-repair_efi_gpt squashfs
+# 补全并重定位备份 GPT，仅保留 UEFI/ext4 完整磁盘镜像。
+IMAGE_NAME="openwrt-$VERSION-x86-64-generic-ext4-combined-efi.img.gz"
+IMAGE_GZ="$SOURCE/$IMAGE_NAME"
+RAW="$WORK/$PROFILE-efi-ext4.raw"
+test -s "$IMAGE_GZ"
+gzip -dc "$IMAGE_GZ" > "$RAW"
+sgdisk -e "$RAW" >/dev/null
+sgdisk -v "$RAW"
+gzip -n -9 < "$RAW" > "$ROOT/out/$PROFILE/$IMAGE_NAME"
+rm -f "$RAW"
 
-find "$SOURCE" -maxdepth 1 -type f -name '*.img.gz' -exec cp -v '{}' "$ROOT/out/$PROFILE/" \;
-find "$SOURCE" -maxdepth 1 -type f -name '*.manifest' -exec cp -v '{}' "$ROOT/out/$PROFILE/" \;
-test -s "$SOURCE/openwrt-$VERSION-x86-64-generic-ext4-combined.img.gz"
-test -s "$SOURCE/openwrt-$VERSION-x86-64-generic-ext4-combined-efi.img.gz"
-
-# 基于官方 ext4-combined BIOS/EFI 分别转换 Hyper-V Gen1/Gen2 动态 VHDX。
-for gen in gen1 gen2; do
-  if [ "$gen" = gen1 ]; then input='ext4-combined.img.gz'; else input='ext4-combined-efi.img.gz'; fi
-  in="$SOURCE/openwrt-$VERSION-x86-64-generic-$input"
-  raw="$WORK/openwrt-$gen.raw"
-  gzip -dc "$in" > "$raw"
-  out="$ROOT/out/$PROFILE/openwrt-$VERSION-$PROFILE-hyperv-$gen-ext4.vhdx"
-  # QEMU VHDX 驱动不支持 resize。先稀疏扩展 RAW，再转换动态 VHDX。
-  truncate -s "${HYPERV_DISK_GIB}G" "$raw"
-  if [ "$gen" = gen2 ]; then
-    # RAW 扩到虚拟磁盘容量后，备份 GPT 必须再次移动到 16–64 GiB 虚拟盘的真实末尾。
-    sgdisk -e "$raw" >/dev/null
-    sgdisk -v "$raw"
-  fi
-  qemu-img convert -f raw -O vhdx -o subformat=dynamic "$raw" "$out"
-  qemu-img check -f vhdx "$out"
-  qemu-img info -f vhdx "$out" > "$out.info.txt"
-  rm -f "$raw"
-done
-
+# 附带安装包清单，辅助静态校验及追溯。
+MANIFEST="$(find "$SOURCE" -maxdepth 1 -type f -name '*.manifest' -print -quit)"
+test -s "$MANIFEST"
+cp "$MANIFEST" "$ROOT/out/$PROFILE/"
 printf '%s\n' "$PACKAGES" > "$ROOT/out/$PROFILE/requested-packages.txt"
 cat > "$ROOT/out/$PROFILE/build-info.txt" <<EOF
 OpenWrt: $VERSION
-Architecture: x86_64; profile: $PROFILE
+Architecture: x86_64; profile: lab
+Boot: UEFI only
+Filesystem: ext4
+Physical image: $IMAGE_NAME
 Real hardware: Intel I225-V via kmod-igc; SATA via AHCI
-Hyper-V driver: built-in CONFIG_HYPERV_NET/CONFIG_HYPERV_STORAGE
-Physical images: BIOS/UEFI, ext4/squashfs
-Hyper-V images: Gen1(BIOS)/Gen2(UEFI), ext4 dynamic VHDX
-Gen2 requires Secure Boot disabled
 Root filesystem partition: $ROOTFS_MIB MiB
-Virtual disk size: $HYPERV_DISK_GIB GiB
-Hyper-V auto-grow: enabled for ext4 guests; Gen2 additionally permits OpenWrt BIOS Boot partition 128
-Physical auto-grow: disabled (protect physical sda4 data partition)
-Auto-grow: stage1 partition resize + one reboot; stage2 ext4 online resize
+Physical auto-grow: disabled (protect existing data partitions)
 Auto-flash / secrets: none
-Verification: build-only; real device/VM/network functionality remains untested
+Verification: build-only; real device/network functionality remains untested
 EOF
 (
   cd "$ROOT/out/$PROFILE"
-  sha256sum ./*.img.gz ./*.vhdx > SHA256SUMS
+  sha256sum ./*.img.gz > SHA256SUMS
 )
 echo "构建完成：$ROOT/out/$PROFILE"

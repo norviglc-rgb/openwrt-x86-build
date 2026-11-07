@@ -1,22 +1,17 @@
-# 物理机和 Hyper-V 验收清单
+# lab UEFI/ext4 实机验收清单
 
-## 构建
-- [ ] base/lab 两组工作流全部 success；生成 BIOS、UEFI 的 ext4/SquashFS combined 及 Gen1/Gen2 动态 VHDX。
-- [ ] 官方 OpenWrt ImageBuilder/SDK SHA-256 校验通过。
-- [ ] lab 的 APK 清单具有 QoSmate 后端+LuCI、qosify、OpenClash、Mihomo、Argon、banIP、Bandix Plus 前后端、nlbwmon、collectd、Internet Detector 前后端、微信推送+中文包。
-- [ ] qemu-img check/info 通过，Hyper-V VHDX 容量 16 GiB，rootfs 初始 2048 MiB。
+## 编译产物
+- [ ] 仅 lab 工作流成功，输出只有一个 ext4-combined-efi.img.gz 镜像。
+- [ ] SHA256、主/备 GPT、UEFI、ext4、软件包 manifest 静态校验通过。
+- [ ] 初始根分区默认 2048 MiB；物理机自动扩容未开启。
 
-## Hyper-V
-- [ ] Gen1 使用 BIOS VHDX 引导成功。
-- [ ] Gen2 使用 UEFI VHDX 并关闭 Secure Boot 引导成功。
-- [ ] Hyper-V 网络/存储驱动可用，LuCI、SSH、DHCP、DNS、IPv4/IPv6 可用；不要直接套用物理 eth0-eth3。
-- [ ] 全新测试盘第一次启动自动调整第二分区并重启一次，第二次启动自动扩 ext4；附加第三个分区后必须拒绝扩容，原盘数据保持不变。
-
-## J4125 实机
-- [ ] I225-V 四口均识别；PPPoE 拨号、DHCPv6/RA、WireGuard、DNS/防火墙正常。
-- [ ] OpenClash 内核、规则细分、节点订阅、IPv6 与 DNS 分流无绕行。
-- [ ] QoSmate 与 qosify 分别测吞吐/拥塞延迟/DSCP；同一时间只能启用一个。
-- [ ] Bandix Plus 不开限速，比较 nlbwmon 与 collectd 的统计、CPU。
-- [ ] Internet Detector 不开启自动重启；微信推送只在本机填写密钥。
-- [ ] 网络故障可通过本地/独立管理链路恢复。
-- [ ] 保留原 SSD sda4 数据分区完整性并完成回滚演练后，才考虑生产部署。
+## J4125 / I225-V 实机
+- [ ] 使用没有重要数据的测试盘，验证 UEFI 启动。
+- [ ] 四口 Intel I225-V 均正确识别，并核对实际 WAN/LAN 对应关系。
+- [ ] PPPoE、DHCPv6/RA、WireGuard、DNS、Firewall4、LAN DHCP 工作正常。
+- [ ] OpenClash/Mihomo、规则分流和 DNS/IPv6 无旁路。
+- [ ] QoSmate 与 qosify 逐一验证拥塞、延迟和 DSCP，不要同时启用。
+- [ ] Bandix Plus 不启用限速；比较 nlbwmon/collectd 的资源消耗。
+- [ ] Internet Detector 不启用自动重启；微信推送密钥只在本地配置。
+- [ ] 配置和磁盘有可用备份；独立管理链路和回滚计划可用。
+- [ ] 不覆盖已有 SSD 的 sda4 数据分区。

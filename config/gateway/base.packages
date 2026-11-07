@@ -27,7 +27,7 @@ tcpdump
 kmod-sched-cake
 tc-full
 
-# Hyper-V 来宾安全扩容所需工具；仅在 Microsoft Hyper-V 虚拟机使用
+# 本地分区诊断和手工维护工具；不执行物理机自动扩容
 parted
 resize2fs
 lsblk

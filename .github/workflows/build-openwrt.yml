@@ -1,5 +1,5 @@
 name: OpenWrt 25.12.6 物理机与 Hyper-V
-run-name: "OpenWrt 25.12.6 · ${{ github.event_name }} · ${{ github.ref_name }}"
+run-name: "OpenWrt 25.12.6 lab UEFI/ext4 · ${{ github.event_name }}"
 on:
   workflow_dispatch:
     inputs:
@@ -8,21 +8,20 @@ on:
         required: false
         default: "2048"
         type: string
-      hyperv_disk_gib:
-        description: "Hyper-V 虚拟硬盘容量（GiB，8–64）"
-        required: false
-        default: "16"
-        type: string
   push:
     branches: [main]
     paths:
       - ".github/workflows/build-openwrt.yml"
-      - "scripts/**"
+      - "scripts/build-image.sh"
+      - "scripts/build-sdk-packages.sh"
+      - "scripts/verify-artifacts.py"
       - "config/gateway/**"
   pull_request:
     paths:
       - ".github/workflows/build-openwrt.yml"
-      - "scripts/**"
+      - "scripts/build-image.sh"
+      - "scripts/build-sdk-packages.sh"
+      - "scripts/verify-artifacts.py"
       - "config/gateway/**"
 permissions:
   contents: read
@@ -31,46 +30,40 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    name: "${{ matrix.profile }} · 物理机 + Hyper-V Gen1/Gen2"
+    name: lab · UEFI ext4
     runs-on: ubuntu-24.04
     timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      matrix:
-        profile: [base, lab]
     steps:
       - name: 获取源码
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: 安装 ImageBuilder、SDK、VHDX 工具
+      - name: 安装 ImageBuilder、SDK 工具
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential gawk git wget curl zstd qemu-utils gdisk ca-certificates \
+            build-essential gawk git wget curl zstd gdisk ca-certificates \
             rsync unzip file python3 python3-setuptools \
             libncurses-dev flex bison gettext libssl-dev subversion \
             autoconf automake cmake libelf-dev zlib1g-dev
       - name: 静态检查
         run: |
           bash -n scripts/build-image.sh scripts/build-sdk-packages.sh
-          sh -n scripts/expand-hyperv-root-safe.sh
           python3 -m py_compile scripts/verify-artifacts.py
           test -s config/gateway/vendor.lock
           test -s config/gateway/base.packages
           test -s config/gateway/lab.packages
-      - name: 生成实体机与 Hyper-V 固件
+      - name: 生成 lab UEFI/ext4 固件
         env:
           ROOTFS_MIB: ${{ inputs.rootfs_mib || '2048' }}
-          HYPERV_DISK_GIB: ${{ inputs.hyperv_disk_gib || '16' }}
-        run: bash scripts/build-image.sh "${{ matrix.profile }}"
-      - name: 验证实际固件（哈希、GRUB/分区、文件系统、VHDX、包清单）
-        run: python3 scripts/verify-artifacts.py "out/${{ matrix.profile }}"
-      - name: 上传镜像和校验文件（已做静态验证，启动仍须实测）
+        run: bash scripts/build-image.sh lab
+      - name: 验证镜像（SHA256、GPT/UEFI、ext4、包清单）
+        run: python3 scripts/verify-artifacts.py out/lab
+      - name: 上传镜像与清单
         if: success()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: openwrt-25.12.6-${{ matrix.profile }}-physical-hyperv-${{ github.run_number }}
-          path: out/${{ matrix.profile }}/
+          name: openwrt-25.12.6-lab-efi-ext4-${{ github.run_number }}
+          path: out/lab/
           if-no-files-found: error
           retention-days: 14

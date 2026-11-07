@@ -1,18 +1,13 @@
 name: Publish OpenWrt Releases
 on:
-  # 修复发布工作流时，自动补发最近一次成功编译，无需重新构建。
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/publish-release.yml"
   workflow_run:
     workflows: ["OpenWrt 25.12.6 物理机与 Hyper-V"]
     types: [completed]
   workflow_dispatch:
     inputs:
       run_id:
-        description: "成功构建的 Actions Run ID（例如 42341742908）"
-        required: false
+        description: "lab EFI/ext4 新格式构建的 Actions Run ID"
+        required: true
         type: string
 permissions:
   contents: write
@@ -25,7 +20,6 @@ jobs:
   publish:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main' &&
        (github.event.workflow_run.event == 'push' ||
@@ -42,9 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           RUN_ID="${EVENT_RUN_ID:-${INPUT_RUN_ID:-}}"
-          if [[ -z "$RUN_ID" ]]; then
-            RUN_ID="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build-openwrt.yml/runs?branch=main&status=success&per_page=1" --jq '.workflow_runs[0].id')"
-          fi
+          [[ -n "$RUN_ID" ]] || { echo "缺少源构建 Run ID"; exit 1; }
           [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "Invalid run_id: $RUN_ID"; exit 1; }
           run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
           echo "$run_json" | jq -e --arg repo "$GITHUB_REPOSITORY" '
@@ -61,56 +53,52 @@ jobs:
           echo "head_sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "tag=v25.12.6-build-$RUN_ID" >> "$GITHUB_OUTPUT"
 
-      - name: 下载 base 和 lab 已验证的 Artifacts
+      - name: 下载并验证 lab EFI/ext4 Artifact
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ steps.source.outputs.run_id }}
           RUN_NUMBER: ${{ steps.source.outputs.run_number }}
         run: |
           set -euo pipefail
+          artifact="openwrt-25.12.6-lab-efi-ext4-$RUN_NUMBER"
           gh run download "$RUN_ID" -R "$GITHUB_REPOSITORY" \
-            --pattern "openwrt-25.12.6-*-physical-hyperv-$RUN_NUMBER" -D artifacts
-          for profile in base lab; do
-            dir="artifacts/openwrt-25.12.6-$profile-physical-hyperv-$RUN_NUMBER"
-            test -d "$dir"
-            test -s "$dir/SHA256SUMS"
-            (cd "$dir" && sha256sum --check SHA256SUMS)
-            test "$(find "$dir" -maxdepth 1 -type f \( -name '*.img.gz' -o -name '*.vhdx' \) | wc -l)" -eq 8
-            test -s "$dir/build-info.txt"
-            test -s "$dir/requested-packages.txt"
-            test "$(find "$dir" -maxdepth 1 -type f -name '*.manifest' | wc -l)" -eq 1
-          done
+            --pattern "$artifact" -D artifacts
+          dir="artifacts/$artifact"
+          test -d "$dir"
+          test -s "$dir/SHA256SUMS"
+          (cd "$dir" && sha256sum --check SHA256SUMS)
+          test "$(find "$dir" -maxdepth 1 -type f -name '*.img.gz' | wc -l)" -eq 1
+          test "$(find "$dir" -maxdepth 1 -type f -name '*.vhdx' | wc -l)" -eq 0
+          test -s "$dir/openwrt-25.12.6-x86-64-generic-ext4-combined-efi.img.gz"
+          test -s "$dir/build-info.txt"
+          test -s "$dir/requested-packages.txt"
+          test "$(find "$dir" -maxdepth 1 -type f -name '*.manifest' | wc -l)" -eq 1
 
-      - name: 生成无重名 Release 文件及说明
+      - name: 准备精简的 Release 附件
         env:
           RUN_ID: ${{ steps.source.outputs.run_id }}
           RUN_NUMBER: ${{ steps.source.outputs.run_number }}
           SHA: ${{ steps.source.outputs.head_sha }}
         run: |
           set -euo pipefail
+          dir="artifacts/openwrt-25.12.6-lab-efi-ext4-$RUN_NUMBER"
           mkdir -p release
-          for profile in base lab; do
-            dir="artifacts/openwrt-25.12.6-$profile-physical-hyperv-$RUN_NUMBER"
-            while IFS= read -r -d '' file; do
-              name="$(basename "$file")"
-              cp "$file" "release/$profile-$name"
-            done < <(find "$dir" -maxdepth 1 -type f -print0)
-          done
-          (cd release && sha256sum ./*.img.gz ./*.vhdx > SHA256SUMS)
+          cp "$dir/openwrt-25.12.6-x86-64-generic-ext4-combined-efi.img.gz" \
+            "release/lab-openwrt-25.12.6-x86-64-generic-ext4-combined-efi.img.gz"
+          cp "$dir/build-info.txt" release/build-info.txt
+          cp "$dir/requested-packages.txt" release/requested-packages.txt
+          cp "$dir"/*.manifest release/packages.manifest
+          (cd release && sha256sum ./*.img.gz > SHA256SUMS)
           cat > release-notes.md <<EOF
-          ## OpenWrt 25.12.6 x86-64 — Build $RUN_ID
+          ## OpenWrt 25.12.6 x86-64 — lab UEFI/ext4
 
           - Source build: https://github.com/$GITHUB_REPOSITORY/actions/runs/$RUN_ID
           - Build source commit: $SHA
-          - Release tag target: main (GitHub Actions token cannot tag older workflow revisions)
-          - Profiles: base and lab
-          - Hardware: BIOS/UEFI, ext4/squashfs image
-          - Hyper-V: Gen1/Gen2 dynamic VHDX (Gen2: disable Secure Boot)
-          - All image SHA256 values and disk structures were checked by the build workflow.
-          - Boot, network, and hardware compatibility still require real-device testing.
-
-          Asset names begin with base- or lab- to prevent collisions.
-          SHA256SUMS contains hashes for published image and VHDX attachments.
+          - Release tag target: main
+          - Exactly one physical UEFI/ext4 combined image; no BIOS, SquashFS, base or Hyper-V VHDX.
+          - Static checks include SHA256, GPT/UEFI, ext4, and required packages.
+          - Do NOT overwrite disks with important existing data partitions.
+          - Actual boot, driver, and networking functionality still require hardware tests.
           EOF
 
       - name: 发布 GitHub Release
