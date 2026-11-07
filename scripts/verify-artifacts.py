@@ -167,7 +167,7 @@ def main():
     output = Path(sys.argv[1])
     require(output.name == "lab" and output.is_dir(), "只允许 lab 输出目录")
     info = (output / "build-info.txt").read_text(encoding="utf-8")
-    root_match = re.search(r"Root filesystem partition:\\s*(\\d+)\\s*MiB", info)
+    root_match = re.search(r"Root filesystem partition:\s*(\d+)\s*MiB", info)
     require(root_match, "build-info 缺少根分区大小")
     root_mib = int(root_match.group(1))
     name = f"openwrt-{VERSION}-x86-64-generic-ext4-combined-efi.img.gz"

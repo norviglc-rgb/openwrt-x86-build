@@ -1,4 +1,4 @@
-name: OpenWrt 25.12.6 物理机与 Hyper-V
+name: OpenWrt 25.12.6 lab UEFI ext4
 run-name: "OpenWrt 25.12.6 lab UEFI/ext4 · ${{ github.event_name }}"
 on:
   workflow_dispatch:
