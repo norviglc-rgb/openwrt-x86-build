@@ -85,13 +85,13 @@ def partitions_mbr(data):
 
 
 def partitions_gpt(data):
-    require(data[510:512] == b"\\x55\\xaa", "UEFI: 保护 MBR 损坏")
+    require(data[510:512] == b"\x55\xaa", "UEFI: 保护 MBR 损坏")
     require(data[512:520] == b"EFI PART", "UEFI: GPT 主表签名缺失")
     hdrsize = u32(data, 512 + 12)
     require(92 <= hdrsize <= 512, "UEFI: GPT Header 长度异常")
     header = bytearray(data[512:512 + hdrsize])
     actual_crc = u32(header, 16)
-    header[16:20] = b"\\0" * 4
+    header[16:20] = b"\0" * 4
     require((zlib.crc32(header) & 0xffffffff) == actual_crc,
             "UEFI: GPT Header CRC 错误")
     table_lba = u64(data, 512 + 72)

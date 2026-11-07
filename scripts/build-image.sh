@@ -33,8 +33,8 @@ import re
 import sys
 p = Path(sys.argv[1])
 text = p.read_text()
-pattern = r'(\\$\\(CONFIG_TARGET_ROOTFS_PARTSIZE\\) \\$\\(IMAGE_ROOTFS\\) \\\\\\n\\s*)256(\\n)'
-new, n = re.subn(pattern, r'\\g<1>1024\\g<2>', text, count=1)
+pattern = r'(\$\(CONFIG_TARGET_ROOTFS_PARTSIZE\) \$\(IMAGE_ROOTFS\) \\\n\s*)256(\n)'
+new, n = re.subn(pattern, r'\g<1>1024\g<2>', text, count=1)
 if n != 1:
     raise SystemExit("无法唯一定位 x86 镜像 256 KiB 对齐参数")
 p.write_text(new)
