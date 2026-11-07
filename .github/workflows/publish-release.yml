@@ -1,0 +1,117 @@
+name: Publish OpenWrt Releases
+on:
+  workflow_run:
+    workflows: ["OpenWrt 25.12.6 物理机与 Hyper-V"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "成功构建的 Actions Run ID（例如 42341742908）"
+        required: true
+        type: string
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: openwrt-release-${{ github.event.workflow_run.id || inputs.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       (github.event.workflow_run.event == 'push' ||
+        github.event.workflow_run.event == 'workflow_dispatch'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: 确认源构建成功且来自 main
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          RUN_ID="${EVENT_RUN_ID:-$INPUT_RUN_ID}"
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "Invalid run_id"; exit 1; }
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID")"
+          echo "$run_json" | jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .status == "completed" and .conclusion == "success" and
+            .head_branch == "main" and .head_repository.full_name == $repo and
+            .path == ".github/workflows/build-openwrt.yml" and
+            (.event == "push" or .event == "workflow_dispatch")
+          ' >/dev/null
+          SHA="$(jq -r '.head_sha' <<< "$run_json")"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "tag=v25.12.6-build-$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: 下载 base 和 lab 已验证的 Artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          gh run download "$RUN_ID" -R "$GITHUB_REPOSITORY" \
+            --pattern "openwrt-25.12.6-*-physical-hyperv-$RUN_ID" -D artifacts
+          for profile in base lab; do
+            dir="artifacts/openwrt-25.12.6-$profile-physical-hyperv-$RUN_ID"
+            test -d "$dir"
+            test -s "$dir/SHA256SUMS"
+            (cd "$dir" && sha256sum --check SHA256SUMS)
+            test "$(find "$dir" -maxdepth 1 -type f \( -name '*.img.gz' -o -name '*.vhdx' \) | wc -l)" -eq 8
+            test -s "$dir/build-info.txt"
+            test -s "$dir/requested-packages.txt"
+            test "$(find "$dir" -maxdepth 1 -type f -name '*.manifest' | wc -l)" -eq 1
+          done
+
+      - name: 生成无重名 Release 文件及说明
+        env:
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+          SHA: ${{ steps.source.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          for profile in base lab; do
+            dir="artifacts/openwrt-25.12.6-$profile-physical-hyperv-$RUN_ID"
+            while IFS= read -r -d '' file; do
+              name="$(basename "$file")"
+              cp "$file" "release/$profile-$name"
+            done < <(find "$dir" -maxdepth 1 -type f -print0)
+          done
+          (cd release && sha256sum ./*.img.gz ./*.vhdx > SHA256SUMS)
+          cat > release-notes.md <<EOF
+          ## OpenWrt 25.12.6 x86-64 — Build $RUN_ID
+
+          - Source build: https://github.com/$GITHUB_REPOSITORY/actions/runs/$RUN_ID
+          - Commit: $SHA
+          - Profiles: base and lab
+          - Hardware: BIOS/UEFI, ext4/squashfs image
+          - Hyper-V: Gen1/Gen2 dynamic VHDX (Gen2: disable Secure Boot)
+          - All image SHA256 values and disk structures were checked by the build workflow.
+          - Boot, network, and hardware compatibility still require real-device testing.
+
+          Asset names begin with `base-` or `lab-` to prevent collisions.
+          SHA256SUMS contains hashes for published image and VHDX attachments.
+          EOF
+
+      - name: 发布 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.source.outputs.tag }}
+          SHA: ${{ steps.source.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; skipping duplicate publication"
+            exit 0
+          fi
+          gh release create "$TAG" release/* \
+            -R "$GITHUB_REPOSITORY" \
+            --target "$SHA" \
+            --title "OpenWrt 25.12.6 · Build ${TAG##*-}" \
+            --notes-file release-notes.md \
+            --latest
