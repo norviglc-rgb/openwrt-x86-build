@@ -101,7 +101,8 @@ jobs:
           ## OpenWrt 25.12.6 x86-64 — Build $RUN_ID
 
           - Source build: https://github.com/$GITHUB_REPOSITORY/actions/runs/$RUN_ID
-          - Commit: $SHA
+          - Build source commit: $SHA
+          - Release tag target: main (GitHub Actions token cannot tag older workflow revisions)
           - Profiles: base and lab
           - Hardware: BIOS/UEFI, ext4/squashfs image
           - Hyper-V: Gen1/Gen2 dynamic VHDX (Gen2: disable Secure Boot)
@@ -125,7 +126,7 @@ jobs:
           fi
           gh release create "$TAG" release/* \
             -R "$GITHUB_REPOSITORY" \
-            --target "$SHA" \
+            --target main \
             --title "OpenWrt 25.12.6 · Build ${TAG##*-}" \
             --notes-file release-notes.md \
             --latest
