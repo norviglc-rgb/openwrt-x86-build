@@ -46,7 +46,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential gawk git wget curl zstd qemu-utils ca-certificates \
+            build-essential gawk git wget curl zstd qemu-utils gdisk ca-certificates \
             rsync unzip file python3 python3-setuptools \
             libncurses-dev flex bison gettext libssl-dev subversion \
             autoconf automake cmake libelf-dev zlib1g-dev

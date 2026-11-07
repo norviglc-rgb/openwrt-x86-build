@@ -8,6 +8,7 @@ import re
 import struct
 import subprocess
 import sys
+import uuid
 import zlib
 
 CHUNK = 4 * 1024 * 1024
@@ -76,20 +77,21 @@ def partitions_mbr(data):
     require(sum(bool(b) for b in embedding) > 1024,
             "BIOS: MBR 后的 GRUB 嵌入区域似乎为空")
     check_ext4(data, boot[2] * 512, "BIOS /boot")
-    gap_kib = (boot[2] - 1) // 2
-    if gap_kib < 1024:
-        print(f"  注意：BIOS GRUB 嵌入区约 {gap_kib} KiB，低于上游建议的 1 MiB；仍需引导实测")
+    alignment_kib = boot[2] // 2
+    require(alignment_kib >= 1024,
+            f"BIOS: 第 1 分区仅按 {alignment_kib} KiB 对齐，GRUB 嵌入区仍偏小")
+    print(f"  BIOS: 第 1 分区按 {alignment_kib} KiB 对齐，MBR 后 GRUB 嵌入数据存在")
     return root, boot[2] + boot[3]
 
 
 def partitions_gpt(data):
-    require(data[510:512] == b"\x55\xaa", "UEFI: 保护 MBR 损坏")
+    require(data[510:512] == b"\\x55\\xaa", "UEFI: 保护 MBR 损坏")
     require(data[512:520] == b"EFI PART", "UEFI: GPT 主表签名缺失")
     hdrsize = u32(data, 512 + 12)
     require(92 <= hdrsize <= 512, "UEFI: GPT Header 长度异常")
     header = bytearray(data[512:512 + hdrsize])
     actual_crc = u32(header, 16)
-    header[16:20] = b"\0" * 4
+    header[16:20] = b"\\0" * 4
     require((zlib.crc32(header) & 0xffffffff) == actual_crc,
             "UEFI: GPT Header CRC 错误")
     table_lba = u64(data, 512 + 72)
@@ -100,24 +102,43 @@ def partitions_gpt(data):
     require(len(table) == num * ent_size, "UEFI: GPT 表项截断")
     require((zlib.crc32(table) & 0xffffffff) == u32(data, 512 + 88),
             "UEFI: GPT 分区表 CRC 错误")
-    parts = []
+    parts = {}
     for i in range(num):
         entry = table[i * ent_size:(i + 1) * ent_size]
         if any(entry[:16]):
             first, last = u64(entry, 32), u64(entry, 40)
             require(last >= first, "UEFI: GPT 分区边界错误")
-            parts.append((first, last - first + 1))
-    require(len(parts) == 2, f"UEFI: 应为 2 个分区，实际 {len(parts)}")
-    boot, root = parts
-    require(root[0] > boot[0] + boot[1] - 1, "UEFI: 分区重叠")
-    require(boot[1] >= 32768, "UEFI: 引导分区小于 16 MiB")
-    esp_start = boot[0] * 512
-    esp_end = (boot[0] + boot[1]) * 512
+            parts[i + 1] = {
+                "type": str(uuid.UUID(bytes_le=entry[:16])).lower(),
+                "first": first,
+                "sectors": last - first + 1,
+            }
+    require(set(parts) == {1, 2, 128},
+            f"UEFI: 应为分区 1/2 + BIOS Boot #128，实际 {sorted(parts)}")
+    boot, root, bios = parts[1], parts[2], parts[128]
+    require(bios["type"] == "21686148-6449-6e6f-744e-656564454649",
+            f"UEFI: #128 不是 BIOS Boot GUID: {bios['type']}")
+    require(bios["first"] >= 34 and bios["first"] + bios["sectors"] <= boot["first"],
+            "UEFI: BIOS Boot 分区位置异常或与第 1 分区重叠")
+    require(boot["first"] >= 2048,
+            f"UEFI: 第 1 分区起始 LBA={boot['first']}，未达到 1 MiB 对齐")
+    require(root["first"] >= boot["first"] + boot["sectors"], "UEFI: 分区重叠")
+    require(boot["sectors"] >= 32768, "UEFI: 引导分区小于 16 MiB")
+    bios_start = bios["first"] * 512
+    bios_end = (bios["first"] + bios["sectors"]) * 512
+    bios_data = data[bios_start:bios_end]
+    require(len(bios_data) == bios["sectors"] * 512 and
+            sum(bool(b) for b in bios_data) > 1024,
+            "UEFI: BIOS Boot 分区为空或 GRUB 嵌入数据缺失")
+    esp_start = boot["first"] * 512
+    esp_end = (boot["first"] + boot["sectors"]) * 512
     require(b"FAT16" in data[esp_start:esp_start + 100] or
             b"FAT32" in data[esp_start:esp_start + 100], "UEFI: 引导分区不是 FAT")
     require(b"BOOTX64 EFI" in data[esp_start:esp_end],
             "UEFI: 引导分区缺失 BOOTX64.EFI 目录项")
-    return (0, 0, root[0], root[1]), boot[0] + boot[1]
+    print(f"  UEFI: BIOS Boot #128={bios['sectors'] * 512 // 1024} KiB；"
+          f"FAT 引导分区起始 LBA={boot['first']}")
+    return (0, 0, root["first"], root["sectors"]), boot["first"] + boot["sectors"]
 
 
 def validate_image(path, kind, efi, root_mib):

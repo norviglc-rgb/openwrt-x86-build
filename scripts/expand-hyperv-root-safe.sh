@@ -27,9 +27,20 @@ case "$parent" in /dev/*) disk="$parent";; '') fail '不能确定父磁盘';; *)
 [ -b "$disk" ] || fail "父磁盘不可用: $disk"
 fstype="$(blkid -s TYPE -o value "$root" 2>/dev/null || true)"
 [ "$fstype" = 'ext4' ] || fail "不是 ext4: $fstype"
-parts="$(lsblk -nrpo NAME,TYPE "$disk" | awk '$2=="part" {print $1}')"
+part_rows="$(lsblk -nrpo NAME,TYPE,PARTN "$disk" | awk '$2=="part" {print $1 "|" $3}')"
+parts="$(printf '%s\n' "$part_rows" | cut -d'|' -f1)"
 count="$(printf '%s\n' "$parts" | grep -c . || true)"
-[ "$count" -eq 2 ] || fail "检测到 $count 个分区，需要恰好两个"
+case "$count" in
+  2) ;;
+  3)
+    # OpenWrt combined-efi 会额外生成 GPT #128 BIOS Boot 分区；只放行这个已知布局。
+    bios_part="$(printf '%s\n' "$part_rows" | awk -F'|' '$2=="128" {print $1; exit}')"
+    [ -n "$bios_part" ] || fail "存在第三分区，但不是 OpenWrt GPT #128 BIOS Boot 分区"
+    bios_line="$(parted -m -s "$disk" unit s print 2>/dev/null | awk -F: '$1=="128" {print; exit}')"
+    printf '%s\n' "$bios_line" | grep -q 'bios_grub' || fail "GPT #128 未标记为 bios_grub"
+    ;;
+  *) fail "检测到 $count 个分区，只允许 2 个分区或 OpenWrt Gen2 的 2+BIOS-Boot 布局" ;;
+esac
 printf '%s\n' "$parts" | grep -Fxq "$root" || fail "根分区不在 $disk 中"
 # 只允许根分区的尾部向后扩张，禁止移动分区起始扇区。
 base="${disk##*/}"

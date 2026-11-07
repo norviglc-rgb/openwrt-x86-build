@@ -22,6 +22,23 @@ printf '%s  %s\n' "$HASH" "$ARCHIVE" | sha256sum -c -
 tar --zstd -xf "$ARCHIVE"
 IB="$WORK/${ARCHIVE%.tar.zst}"
 test -d "$IB"
+
+# OpenWrt x86 25.12.6 上游仍以 256 KiB 对齐生成 GRUB BIOS 嵌入区，
+# grub-bios-setup 会警告 BIOS Boot Partition 小于 1 MiB。
+# 仅将 x86 combined 镜像的对齐参数提高到 1024 KiB，不改变分区数量、文件系统或 rootfs 容量。
+IMAGE_MAKEFILE="$IB/target/linux/x86/image/Makefile"
+python3 - "$IMAGE_MAKEFILE" <<'PY'
+from pathlib import Path
+import re
+import sys
+p = Path(sys.argv[1])
+text = p.read_text()
+pattern = r'(\\$\\(CONFIG_TARGET_ROOTFS_PARTSIZE\\) \\$\\(IMAGE_ROOTFS\\) \\\\\\n\\s*)256(\\n)'
+new, n = re.subn(pattern, r'\\g<1>1024\\g<2>', text, count=1)
+if n != 1:
+    raise SystemExit("无法唯一定位 x86 镜像 256 KiB 对齐参数")
+p.write_text(new)
+PY
 mkdir -p "$IB/packages" "$IB/files"
 
 if [ "$PROFILE" = lab ]; then
@@ -95,6 +112,24 @@ make image PROFILE=generic PACKAGES="$PACKAGES" ROOTFS_PARTSIZE="$ROOTFS_MIB" \
   FILES="$IB/files" DISABLED_SERVICES="$DISABLED"
 SOURCE="$IB/bin/targets/x86/64"
 test -d "$SOURCE"
+
+# OpenWrt x86 combined-efi 历史上只保留主 GPT；这里补全并移动备份 GPT 到镜像真实末尾。
+# 这样实体机镜像与后续 VHDX 都拥有完整的主/备 GPT，而不是仅“可启动但 GPT 不规范”。
+repair_efi_gpt() {
+  local kind="$1"
+  local gz="$SOURCE/openwrt-$VERSION-x86-64-generic-$kind-combined-efi.img.gz"
+  local raw="$WORK/$PROFILE-$kind-combined-efi.raw"
+  test -s "$gz"
+  gzip -dc "$gz" > "$raw"
+  sgdisk -e "$raw" >/dev/null
+  sgdisk -v "$raw"
+  gzip -n -9 < "$raw" > "$gz.tmp"
+  mv "$gz.tmp" "$gz"
+  rm -f "$raw"
+}
+repair_efi_gpt ext4
+repair_efi_gpt squashfs
+
 find "$SOURCE" -maxdepth 1 -type f -name '*.img.gz' -exec cp -v '{}' "$ROOT/out/$PROFILE/" \;
 find "$SOURCE" -maxdepth 1 -type f -name '*.manifest' -exec cp -v '{}' "$ROOT/out/$PROFILE/" \;
 test -s "$SOURCE/openwrt-$VERSION-x86-64-generic-ext4-combined.img.gz"
@@ -109,6 +144,11 @@ for gen in gen1 gen2; do
   out="$ROOT/out/$PROFILE/openwrt-$VERSION-$PROFILE-hyperv-$gen-ext4.vhdx"
   # QEMU VHDX 驱动不支持 resize。先稀疏扩展 RAW，再转换动态 VHDX。
   truncate -s "${HYPERV_DISK_GIB}G" "$raw"
+  if [ "$gen" = gen2 ]; then
+    # RAW 扩到虚拟磁盘容量后，备份 GPT 必须再次移动到 16–64 GiB 虚拟盘的真实末尾。
+    sgdisk -e "$raw" >/dev/null
+    sgdisk -v "$raw"
+  fi
   qemu-img convert -f raw -O vhdx -o subformat=dynamic "$raw" "$out"
   qemu-img check -f vhdx "$out"
   qemu-img info -f vhdx "$out" > "$out.info.txt"
@@ -126,7 +166,7 @@ Hyper-V images: Gen1(BIOS)/Gen2(UEFI), ext4 dynamic VHDX
 Gen2 requires Secure Boot disabled
 Root filesystem partition: $ROOTFS_MIB MiB
 Virtual disk size: $HYPERV_DISK_GIB GiB
-Hyper-V auto-grow: enabled for safe two-partition ext4 Hyper-V guests only
+Hyper-V auto-grow: enabled for ext4 guests; Gen2 additionally permits OpenWrt BIOS Boot partition 128
 Physical auto-grow: disabled (protect physical sda4 data partition)
 Auto-grow: stage1 partition resize + one reboot; stage2 ext4 online resize
 Auto-flash / secrets: none
